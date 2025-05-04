@@ -1,11 +1,12 @@
+from typing import List
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import SecretStr
 
 class Settings(BaseSettings):
     BOT_TOKEN: str = '7426379906:AAEtlBFa6Irkz0OJjgHYK63NCw81Zud0H3w'
-    #ADMIN_IDS: List[int]
+    ADMIN_IDS: List[int]
 
-    #PAYMENT_API: List[str]
+    PAYMENT_API: List[str]
 
     API_RETRY: int = 1
 
