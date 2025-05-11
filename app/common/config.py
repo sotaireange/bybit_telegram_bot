@@ -6,7 +6,7 @@ from pydantic import SecretStr
 
 
 class Settings(BaseSettings):
-    BOT_TOKEN: str = '7426379rg7NQAXo17eCfaLAHIaawt4'
+    BOT_TOKEN: str = '7426379906:AAHAkMY4Gg8Yrg7NQAXo17eCfaLAHIaawt4'
     ADMIN_IDS: List[int] =[6422309975]
     DEV_ID: int = 6422309975
 
