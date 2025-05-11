@@ -17,4 +17,4 @@ ENV PYTHONPATH=/app
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-CMD ["python", "-m", "app.telegram.main"]
+CMD ["python", "-m", "app.telegram.main.py"]
