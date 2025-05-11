@@ -20,7 +20,7 @@ from app.telegram.keyboards import cancel_menu
 
 
 
-logger=logging.getLogger('telegram')
+logger=logging.getLogger('aiogram')
 
 class DatabaseMiddleware(BaseMiddleware):
 
@@ -103,7 +103,6 @@ class SetValueMiddleware(BaseMiddleware):
         if current_state[0]=='set':
             state_key = current_state[1]
             min_limit, max_limit = getattr(Limit, state_key.upper(), (0,0))
-            logger.debug(f'Succes {value} State {state_key} MIN {min_limit} MAX {max_limit}')
             try:
                 if state_key not in ['api','secret']:
                     value = float(value)

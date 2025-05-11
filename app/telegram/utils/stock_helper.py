@@ -8,15 +8,20 @@ from app.db.models import User
 from app.exchange.bybit_async import BybitRequester,get_pnl_from_chunks,get_all_position,get_api_permissions,close_order
 from app.telegram.utils.datetime_helper import get_month_bounds,split_into_weeks,filter_months
 
-testnet=True
+testnet=False
 
 
-async def close_all_order_user(user:User):
-    client:BybitRequester =BybitRequester(user.api, user.secret, True)
-    positions = await get_all_position(client)
-    for position in positions:
-        await close_order(client,position)
-        await asyncio.sleep(random.random())
+async def close_all_order_user(user:User): #TODO Проблема с тем, то что не все позиции закрываются. НУжно сделать двойное-тройное закрытие
+    client:BybitRequester =BybitRequester(user.api, user.secret, False)
+    try:
+        positions = await get_all_position(client)
+        if positions:
+            for position in positions:
+                if position:
+                    await close_order(client,position)
+                await asyncio.sleep(random.random())
+    finally:
+        await client.close()
     return positions
 
 
@@ -24,7 +29,10 @@ async def get_user_positions(user:User) -> List[Dict]:
     positions=[]
     if user.api and user.secret:
         client:BybitRequester =BybitRequester(user.api, user.secret, testnet)
-        positions= await get_all_position(client)
+        try:
+            positions= await get_all_position(client)
+        finally:
+            await client.close()
     return positions
 
 
@@ -46,6 +54,7 @@ async def check_permissions(user:User) -> Dict:
     if flag:
         client:BybitRequester =BybitRequester(user.api, user.secret, testnet)
         result=await get_api_permissions(client)
+        await client.close()
         permissions=pd.Series(result['permissions'])
         readonly=result['readOnly']==0
         has_permission=(permissions['ContractTrade']==['Order','Position'] and
@@ -57,6 +66,7 @@ async def check_permissions(user:User) -> Dict:
           'readonly': readonly,
           'permissions': has_permission,
           'has_api_secret': flag,
+          'parentUid': result['parentUid'],
           'result':result}
 
 
@@ -83,5 +93,5 @@ async def get_three_month_pnl(user: User) -> Dict[datetime,float]:
             continue
         pnl_sum = sum(float(item['closedPnl']) for item in result if 'closedPnl' in item)
         total_pnls[start_time] = pnl_sum
-
+    await client.close()
     return total_pnls

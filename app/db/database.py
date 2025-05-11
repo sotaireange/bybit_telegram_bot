@@ -1,16 +1,17 @@
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
-from sqlalchemy.orm import declarative_base
 from redis.asyncio import Redis
-import os
-
+from .models import Base
 
 
 from app.common.config import settings
 
+import logging
+logger=logging.getLogger('system')
+
 engine = create_async_engine(
     settings.DB_URL,
     future=True,
-    echo=False,  # Логгирование(нунжо убрать)
+    echo=False,
     pool_pre_ping=True,
     pool_size=10,
     max_overflow=20
@@ -18,7 +19,6 @@ engine = create_async_engine(
 
 AsyncSessionLocal = async_sessionmaker(bind=engine, expire_on_commit=False, class_=AsyncSession)
 
-Base = declarative_base()
 
 
 
@@ -45,3 +45,15 @@ async def create_tables():
 async def drop_tables():
     async with engine.begin() as conn:
         await conn.run_sync(lambda conn: Base.metadata.drop_all(conn, checkfirst=True))
+
+async def close_databases():
+    try:
+        await r.close()
+        await r.connection_pool.disconnect()
+
+    except Exception as e:
+        logger.error(f'Error while closing redis: {e}')
+    try:
+        await engine.dispose()
+    except Exception as e:
+        logger.error(f'Error while closing redis: {e}')

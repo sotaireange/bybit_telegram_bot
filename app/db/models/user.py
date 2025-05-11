@@ -1,12 +1,8 @@
-from ipywidgets import Datetime
-from sqlalchemy.sql import func
-from sqlalchemy import Column,BigInteger,select,text,Float ,Integer, String, DateTime, ForeignKey, Text, Enum as SQLAEnum, Boolean, func, select
-from enum import Enum
-from dataclasses import dataclass, asdict,fields
+from sqlalchemy import Column,BigInteger,text,Float , String, DateTime, Boolean, func, select
 from sqlalchemy.orm import relationship
 
 
-from .database import Base
+from ._base import Base
 
 
 
@@ -54,7 +50,3 @@ class User(Base):
 
     def __str__(self):
         return f'User- {self.username}, id - {self.id}'
-
-
-
-

@@ -8,8 +8,11 @@ services:
     command: python -m app.telegram.main
     env_file:
       - .env
+    environment:
+      - SERVICE_NAME=bot
     volumes:
       - ./app:/app
+      - logs_volume:/logs
 
     depends_on:
       - postgres
@@ -27,10 +30,9 @@ services:
       - .env
     environment:
       - SERVICE_NAME=worker
-      - POSTGRES_HOST=postgres
-      - REDIS_HOST=redis
     volumes:
       - ./app:/app/app
+      - logs_volume:/logs
     depends_on:
       - postgres
       - redis
@@ -87,6 +89,7 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  logs_volume:
 
 networks:
   app-network:

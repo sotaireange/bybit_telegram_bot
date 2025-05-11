@@ -170,8 +170,11 @@ async def get_positions(bybit_requester: BybitRequester,
     finally:
         return response
 
-async def get_instrument_info(bybit_requester:BybitRequester) -> Optional[Dict]:
-    data={'category': 'linear'}
+async def get_instrument_info(bybit_requester:BybitRequester,symbol:str=None) -> Optional[Dict]:
+    data={'category': 'linear',
+          'limit':1000}
+    if symbol:
+        data.update({'symbol':symbol})
 
     try:
         response = await bybit_requester.send_public_request(endpoint='/v5/market/instruments-info',params=data)
@@ -239,10 +242,11 @@ async def get_mark_price(bybit_requester:BybitRequester,
 async def get_all_position(bybit_requester:BybitRequester) -> List[Dict]:
     data = {
         'category': 'linear',
-        'settleCoin':'USDT'
+        'settleCoin':'USDT',
+        'limit':200
     }
 
-    response=[{}]
+    response=[]
     try:
         response = (await bybit_requester.send_signed_request(
             method='GET',
@@ -257,12 +261,13 @@ async def get_all_position(bybit_requester:BybitRequester) -> List[Dict]:
         logger.exception(e)
 
     finally:
+        if not response: return []
         return response
 
 
 
 async def close_order(bybit_requester:BybitRequester, position:Dict) -> Dict:
-    side='Buy' if position['side']=='Sell' else 'Sell'
+    side='Buy' if position.get('side')=='Sell' else 'Sell'
 
     data = {
         'category': 'linear',

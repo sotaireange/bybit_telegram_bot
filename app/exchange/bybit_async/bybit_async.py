@@ -41,7 +41,7 @@ class BybitRequester:
     async def close(self):
         async with self._session_lock:
             if self._session and not self._session.closed:
-                await self._session.closed
+                await self._session.close()
                 self._session = None
 
     @retrier_async
@@ -105,7 +105,7 @@ class BybitRequester:
                     await self._session.close()
                 except Exception as e:
                     logger.warning(f"Error closing session: {e}")
-            self._session = None  # Will be recreated on next request
+            self._session = None
 
     async def send_paginated_request(self, method: str, endpoint: str, params: dict = None):
         params = params or {}

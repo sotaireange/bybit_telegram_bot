@@ -11,6 +11,7 @@ logger=logging.getLogger('trading')
 
 API_RETRY_COUNT = settings.API_RETRY
 
+SKIP_RET_CODE= [0]#[0,10001,110043,30209,30208]
 
 def calculate_backoff(retrycount, max_retries):
     """
@@ -22,7 +23,7 @@ def calculate_backoff(retrycount, max_retries):
 def validate_response(response: Dict,endpoing:str,params:Dict) -> None:
     if not isinstance(response, dict) or 'retCode' not in response or 'retMsg' not in response:
         raise ValueError(f"Unexpected response format: {response}")
-    if response['retCode'] not in [0,10001,110043]: #TODO: нужно будет убрать 10001
+    if response['retCode'] not in SKIP_RET_CODE: #TODO: нужно будет убрать 10001
         #logger.warning(f'Bybit Api Error {endpoing} \n Params {params}\nResponse {response}')
         raise BybitApiError(response)
 
@@ -33,7 +34,7 @@ def retrier_async(f):
         try:
             return await f(*args, **kwargs)
         except BybitApiError as ex:
-            if ex.ret_code in [110043,10001]: # ??? ПОЧЕМУ ЭТОО РАБОТАЕТ
+            if ex.ret_code in [0,10001,110043,30209,30208]:
                 return await f(*args, **kwargs)
             msg = f'{f.__name__}() returned exception: "{ex}". '
             if count > 0:

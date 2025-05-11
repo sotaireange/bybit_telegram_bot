@@ -8,11 +8,11 @@ from aiogram.fsm.storage.redis import Redis
 
 from app.db.services import RedisClient
 
-from .utils import get_instrument_info,get_all_tickers
+from app.telegram.parser_coins.utils import get_instrument_info,get_all_tickers
 
 
+logger=logging.getLogger('ccxt')
 
-logger=logging.getLogger('admin')
 
 
 async def infinity_get_data_coins(redis: Redis):
@@ -53,9 +53,23 @@ async def infinity_get_data_coins(redis: Redis):
             except Exception as e:
                 logger.error(e)
                 await exchange.close()
-                await asyncio.sleep(1200)
+                await asyncio.sleep(60)
                 exchange = ccxt.bybit({
                     'enableRateLimit': False,
                 })
     finally:
         await exchange.close()
+
+
+
+if __name__ == '__main__':
+    import sys
+    if sys.platform == 'win32':
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    from app.db.database import r
+
+    from app.common.loggers import setup_logging
+    setup_logging()
+    logger=logging.getLogger('admin')
+
+    asyncio.run(infinity_get_data_coins(r))

@@ -14,7 +14,7 @@ from app.db.services import RedisClient
 from app.telegram.utils.messages import msg
 from app.telegram.keyboards import cancel_menu
 
-logger=logging.getLogger('telegram')
+logger=logging.getLogger('aiogram')
 
 
 class AdminSetValueMiddleware(BaseMiddleware):
@@ -44,6 +44,4 @@ class AdminSetValueMiddleware(BaseMiddleware):
                 return await event.answer(msg('input_value_error'),reply_markup=cancel_menu())
 
             await self.redis_client.set(state_key,value)
-        else:
-            logger.debug("Not state SET")
         return await handler(event, data)

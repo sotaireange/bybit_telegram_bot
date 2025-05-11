@@ -1,9 +1,11 @@
 import pandas as pd
 from typing import Dict,List
 
-from app.db.models import User
+from app.db.models import User,TelegramMessage
 from app.telegram.utils.sub_helper import get_sub_days
 from datetime import datetime
+
+
 
 class MessageBuilder:
     translations = {
@@ -106,6 +108,7 @@ class MessageBuilder:
                  f" {'Тейк':>10} {'PNL':>8}\n")
 
         for position in positions:
+            if not position: continue
             symbol = position.get('symbol', '—')[:-4]
             side = position.get('side', '')
             position_value = cls.safe_round(position.get('positionValue'))
@@ -166,6 +169,11 @@ class MessageBuilder:
         api_text = user.api if user.api else 'Не указан'
         secret_text = user.secret if user.secret else 'Не указан'
         return f'API - {api_text}\nSecret Key - {secret_text}\n'
+
+    @classmethod
+    def get_stock_message(cls, msg: TelegramMessage) -> str:
+        text=''
+        return text
 
 
 msg=MessageBuilder()

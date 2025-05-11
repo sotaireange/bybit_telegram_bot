@@ -1,19 +1,18 @@
 import logging
 import asyncio
-from typing import Dict,Optional, Hashable, List,Union
+from typing import Dict,Optional, Hashable, List,Union,Callable
 
 import numpy as np
 import pandas as pd
-from redis.asyncio import Redis
 
 from app.db.services import RedisClient
-from app.db.models import Run,TradeSettings
+from app.db.models import Run,TradeSettings,MainPosition,SecondaryPosition
 
 
 from app.exchange.bybit_async import BybitRequester
 from app.exchange.bybit_async import get_positions,get_order,get_mark_price,set_leverage,get_balance,get_all_position, place_order,switch_position_mode
 
-from app.exchange.user_trade.utils import (round_step_size, proof_result)
+from app.exchange.user_trade.utils import (improved_round_step_size,round_step_size, proof_result)
 from app.exchange.user_trade.orders import HedgePositionManager,PositionIdx
 
 logger=logging.getLogger('trading')
@@ -25,7 +24,8 @@ if sys.platform.startswith('win'):
 
 
 class TradeBot:
-    def __init__(self,user_id:int,user_data: Dict,redis: Redis,redis_client:RedisClient):
+    def __init__(self,user_id:int,user_data: Dict,redis_client:RedisClient,
+                 notification: Optional[Callable]=None):
         self.is_running: Run= Run.ACTIVE
 
         self.user_id = user_id
@@ -35,13 +35,15 @@ class TradeBot:
 
         self.settings: TradeSettings= TradeSettings()
 
-        self.redis=redis
+        self.redis=redis_client.redis
         self.redis_client=redis_client
         self.hp_manager:HedgePositionManager
 
         self.is_notification=True
 
         self.all_task=[]
+        if notification:
+            self.send_notification=notification
 
 
     def set_client(self,testnet:bool = False):
@@ -58,7 +60,7 @@ class TradeBot:
 
 
     async def initialize(self):
-        self.set_client(True)
+        self.set_client(testnet=False)
         await self.update_settings()
         await self.init_hp_manager()
 
@@ -137,6 +139,7 @@ class TradeBot:
 
     async def check_hedge(self):
         while self.is_running!=Run.OFF:
+            await asyncio.sleep(10)
             for coin in self.hp_manager.get_all_coins():
                 try:
                     price=await self.redis_client.get_mark_price_coin(coin)
@@ -154,32 +157,39 @@ class TradeBot:
     async def fetch_hedge_coin(self,coin:str):
         try:
             coin=pd.Series((await self.redis_client.get_coin_info(coin))[coin],name=coin)
+            #TODO: Не забыть поставить на проекте к get_mark_price От redis
             #price = float(await self.redis_client.get_mark_price_coin(coin.name))
             price=await get_mark_price(self.client,coin.name)
             if price == 0:
                 return
 
             position=self.hp_manager.get_main_position(coin.name)
-
             is_long=position.position_idx==PositionIdx.SHORT
             price_multiplier = 1 + ((self.settings.hedge_stop_loss_percentage / 100) * (1 if not is_long else -1))
             sl_price = round_step_size(price * price_multiplier, coin.tickSize)
 
+            rounded_size=improved_round_step_size(position.size,coin.qtyStep,price,5)
+            amount_coin = max(
+                rounded_size,
+                position.size)
+
+
             order = (await place_order(
                 self.client,
                 coin.name,
-                position.size,
+                amount_coin,
                 is_long,
                 sl_price=sl_price
             ))
+
             # if order['retCode']==10001:
             #     logger.error(f'Failed to fetch coin {coin.name}\n'
             #                  f'Price{price}\n'
             #                  f'order:{order}')
-
-            order=order["result"]
-            if not proof_result(order, dict):
+            if not proof_result(order, dict) or order.get('retCode',-1)!=0:
+                logger.info(f'order: {order} symbol: {coin.name}')
                 return
+            order=order.get("result")
 
             await asyncio.sleep(1)
             await self.after_fetch_coin(coin.name, order,is_hedge=True)
@@ -194,42 +204,50 @@ class TradeBot:
             while self.is_running!=Run.OFF:
                 need_delete=await self.get_delete_positions()
                 if need_delete:
+                    #TODO: Сделать двойную проверку под position непосредственно монетки
                     for pos in need_delete:
                         is_main=pos.get('is_main',True)
                         symbol=pos.get('symbol')
-
                         if symbol:
                             if is_main:
+                                # flag=await self.coin_in_trade(coin=symbol)
+                                # if not flag:
                                 position=await self.hp_manager.remove_main_position(symbol)
                             else:
+                                # flag=await self.have_both_side_position(coin=symbol)
+                                # if not flag:
                                 position=await self.hp_manager.remove_secondary_position(symbol)
 
-                            if self.is_notification:
+                            if self.is_notification: #and not flag:
                                 #order=await self.get_order(symbol,orderId=position.tpsl_order_id)
                                 logger.debug(f'Position {'MAIN' if is_main else 'SECOND'} is over, coin {symbol}')
                 await asyncio.sleep(5)
         except Exception as e:
-            logger.error(e)
+            logger.exception(e)
 
     async def get_delete_positions(self) -> List[Dict]:
         result_db=self.hp_manager.all_to_dict()
         result_api=await get_all_position(self.client)
-        if not result_api[0] or not result_db:
-            return [{}]
-        positions_db = pd.DataFrame(result_db)[['symbol', 'size', 'entry_price', 'position_idx','is_main']]
-        positions_api = pd.DataFrame(result_api)[
-            ['symbol', 'size', 'avgPrice', 'positionIdx', ]].rename(columns={
-            'avgPrice': 'entry_price',
-            'positionIdx': 'position_idx'
-        }).astype({
-            'size': float,
-            'entry_price': float,
-            'position_idx': int
-        })
+        if not result_db:
+            return []
         keys = ['symbol', 'size', 'entry_price', 'position_idx',]
-        keys_from_api = set(tuple(row) for row in positions_api[keys].to_numpy())
-        mask = ~positions_db[keys].apply(tuple, axis=1).isin(keys_from_api)
-        need_delete = positions_db[mask]
+
+        positions_db = pd.DataFrame(result_db)[['symbol', 'size', 'entry_price', 'position_idx','is_main']]
+        if result_api:
+            positions_api = pd.DataFrame(result_api)[
+                ['symbol', 'size', 'avgPrice', 'positionIdx', ]].rename(columns={
+                'avgPrice': 'entry_price',
+                'positionIdx': 'position_idx'
+            }).astype({
+                'size': float,
+                'entry_price': float,
+                'position_idx': int
+            })
+            keys_from_api = set(tuple(row) for row in positions_api[keys].to_numpy())
+            mask = ~positions_db[keys].apply(tuple, axis=1).isin(keys_from_api)
+            need_delete = positions_db[mask]
+        else:
+            need_delete=positions_db
         return need_delete.to_dict('records')
 
 
@@ -276,6 +294,7 @@ class TradeBot:
             await set_leverage(self.client, coin.name, leverage=self.settings.leverage)
 
             balance = await get_balance(self.client)
+            #TODO: Не забыть поставить на проекте к get_mark_price От redis
             price = float(await self.redis_client.get_mark_price_coin(coin.name))
             price=await get_mark_price(self.client,coin.name)
             if not (proof_result(balance, dict) and price > 0):
@@ -286,7 +305,8 @@ class TradeBot:
                 return
 
             available_balance = float(balance.get("totalMarginBalance", 0))
-            raw_amount = ((self.settings.size / 100) * available_balance) * self.settings.leverage / price
+            amount_in_usdt=max((((self.settings.size / 100) * available_balance) * self.settings.leverage),5)
+            raw_amount = (amount_in_usdt / price) +coin.qtyStep
             amount_coin = max(
                 round_step_size(raw_amount, coin.qtyStep),
                 coin.minOrderQty
@@ -307,9 +327,10 @@ class TradeBot:
             #                  f'Price{price}\n'
             #                  f'order:{order}')
 
-            order=order["result"]
-            if not proof_result(order, dict):
+            if not proof_result(order, dict) or order.get('retCode',-1)!=0:
+                logger.info(f'order: {order} symbol: {coin.name}')
                 return
+            order=order.get("result")
 
             await asyncio.sleep(1)
             await self.after_fetch_coin(coin.name, order)
@@ -317,6 +338,12 @@ class TradeBot:
         except Exception as e:
             logger.exception(e)
 
+
+    async def send_notification(user_id:int, position:Union[MainPosition,SecondaryPosition]):
+        try:
+            logger.info(f'position : {position}')
+        except Exception as e:
+            logger.error(e)
 
 
 
@@ -347,7 +374,6 @@ class TradeBot:
                     coins=pd.DataFrame.from_dict(await self.redis_client.get_coins(),orient='index')
                     coins = pd.concat([coins,df_info],axis=1,join='inner')
                     coins=coins[coins[['Long','Short']].any(axis=1)]
-                    logger.debug(f'Coins found {len(coins)}')
                     for _,coin in coins.iterrows():
                         if coin.name in self.hp_manager.positions.keys():
                             continue
@@ -355,7 +381,7 @@ class TradeBot:
                         await asyncio.sleep(np.random.choice(np.linspace(1,3,10)))
                         task=asyncio.create_task(self.fetch_coin(coin))
 
-                    await asyncio.sleep(10)
+                    await asyncio.sleep(3)
 
                 await asyncio.sleep(1)
 
