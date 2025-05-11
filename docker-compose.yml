@@ -11,7 +11,6 @@ services:
     environment:
       - SERVICE_NAME=bot
     volumes:
-      - ./app:/app
       - logs_volume:/logs
 
     depends_on:
@@ -31,7 +30,6 @@ services:
     environment:
       - SERVICE_NAME=worker
     volumes:
-      - ./app:/app/app
       - logs_volume:/logs
     depends_on:
       - postgres
