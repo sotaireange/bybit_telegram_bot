@@ -5,7 +5,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    command: python -m app.telegram.main.py
+    command: python -m app.telegram.main
     env_file:
       - .env
     environment:
@@ -25,7 +25,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    command: python -m app.worker.main.py
+    command: python -m app.worker.main
     env_file:
       - .env
     environment:

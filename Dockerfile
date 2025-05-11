@@ -11,7 +11,8 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY app app/
+# Копирование кода приложения
+COPY app /app/app
 
 ENV PYTHONPATH=/app
 ENV PYTHONDONTWRITEBYTECODE=1
