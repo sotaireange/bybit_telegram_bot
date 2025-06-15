@@ -6,23 +6,26 @@ from enum import Enum
 
 from .trade_position import MainPosition,SecondaryPosition
 
-# Модели сообщений для очередей
+class TaskType(str, Enum):
+    MAIN = "main"
+    HEDGE = "hedge"
+
 class TaskMessage(BaseModel):
     task_id: int
-    task_type: str
+    task_type: TaskType
     user_id: int
     data: Optional[Dict[str, Any]] = None
 
 
 
-class OrderType(str, Enum):
-    ACTIVE = "active"
-    HEDGE = "hedge"
-    OFF = "off"
 
 
+class NotificationType(str,Enum):
+    POSITION_CLOSE='position_close'
+    POSITION_OPEN='position_open'
 
 class TelegramMessage(BaseModel):
     user_id: int
+    type:NotificationType
     data: Union[MainPosition,SecondaryPosition]
 

@@ -56,7 +56,7 @@ class RedisMiddleware(BaseMiddleware):
         return await handler(event, data)
 
 
-class GetUsereMiddleware(BaseMiddleware):
+class GetUsersMiddleware(BaseMiddleware):
 
     def __init__(self, sessionmaker: async_sessionmaker[AsyncSession]):
         super().__init__()

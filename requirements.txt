@@ -9,3 +9,7 @@ pydantic==2.10.6
 redis==5.2.1
 SQLAlchemy==2.0.40
 urllib3==2.3.0
+pydantic==2.10.6
+pydantic-settings==2.8.1
+rich==13.9.4
+

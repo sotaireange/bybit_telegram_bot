@@ -1,6 +1,6 @@
 from typing import Dict,Sequence
 from datetime import datetime
-
+import pandas as pd
 from app.db.models import User
 
 
@@ -40,29 +40,30 @@ class AdminMsgBuilder(MessageBuilder):
             text+= f'{user.username}: id-{user.id} {is_run_text}\n'
         return text
 
-    @classmethod
-    def get_user_text(cls,user: User,pnl: Dict[datetime,float],is_run: bool) -> str:
+    @classmethod #TODO: надо будет исправить логику вывода pnl
+    def get_user_text(cls,user: User,pnl: pd.DataFrame,is_run: bool) -> str:
         text=f'{user.username}: id - {user.id} {'ON' if is_run else 'OFF'}\n'
         text+=cls.get_sub_text(user)
         #text+=get_settings_text(user)
         text+=cls.get_stock_text(user)
-        if pnl:
+        if len(pnl):
             text+= cls.get_pnl_text(pnl)
         return text
 
 
-    def get_global_settings_text(data:Dict) -> str:
+    def get_global_settings_text(self,data_coin:Dict,data_trade:Dict) -> str:
         text=(f'Настройка монет:'
-              f'Объем Лонг : {data['volume_long']}$\n'
-              f'Объем Шорт : {data['volume_short']}$\n'
-              f'Процент лонг : {data['long_percentage']}%\n'
-              f'Процент Шорт : {data['short_percentage']}%\n'
+              f'Объем Лонг : {data_coin['volume_long']}$\n'
+              f'Объем Шорт : {data_coin['volume_short']}$\n'
+              f'Процент лонг : {data_coin['long_percentage']}%\n'
+              f'Процент Шорт : {data_coin['short_percentage']}%\n'
               f'Настройка торговли:\n'
-              f'Процент баланса от общего: {data['size']}$\n'
-              f'Максимальный баланс : {data['balance']}$\n'
-              f'Процент прибыли(Take Profit : {data['take_profit']}%\n'
-              f'Процента Хеджа : {data['hedge_percentage']}\n'
-              f'Кредитное плечо : {data['leverage']}%\n'
+              f'Процент баланса от общего: {data_trade['size']}%\n'
+              f'Максимальный баланс : {data_trade['balance']}$\n'
+              f'Процент прибыли(Take Profit : {data_trade['take_profit']}%\n'
+              f'Процента Хеджа : {data_trade['hedge_percentage']}\n'
+              f'Стоп Лосс Хеджа : {data_trade['hedge_stop_loss_percentage']}\n'
+              f'Кредитное плечо : {data_trade['leverage']}%\n'
               )
         return text
 

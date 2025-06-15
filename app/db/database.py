@@ -1,7 +1,7 @@
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession,create_async_engine, async_sessionmaker
 from redis.asyncio import Redis
 from .models import Base
-
+from sqlalchemy import text
 
 from app.common.config import settings
 
@@ -44,7 +44,9 @@ async def create_tables():
 
 async def drop_tables():
     async with engine.begin() as conn:
-        await conn.run_sync(lambda conn: Base.metadata.drop_all(conn, checkfirst=True))
+        await conn.execute(text("DROP SCHEMA public CASCADE"))
+        await conn.execute(text("CREATE SCHEMA public"))
+
 
 async def close_databases():
     try:

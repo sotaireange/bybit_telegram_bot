@@ -1,5 +1,6 @@
 import logging
-
+from aiogram.enums import ParseMode
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from aiogram.types import CallbackQuery,Message
 from aiogram.fsm.context import FSMContext
@@ -13,6 +14,8 @@ from app.telegram.utils.messages import msg
 from app.telegram.utils.limit import Limit
 
 
+from app.db.models import Notification
+from app.db.services import postgres_db as pdb
 
 
 
@@ -21,8 +24,10 @@ from . import setting_router as router
 
 logger = logging.getLogger('telegram')
 
+#TODO: Возможность сделать Изменение notification. 
 
-@router.callback_query(lambda call: call.data in ['leverage','size','balance','take_profit'])
+
+@router.callback_query(lambda call: call.data in [])#['leverage','size','balance','take_profit'])
 async def set_state(call: CallbackQuery, state: FSMContext):
     data:str=call.data
     await state.set_state(f'Set:{data.upper()}')
@@ -30,12 +35,18 @@ async def set_state(call: CallbackQuery, state: FSMContext):
     text=msg('input_setting',data,limit[0],limit[1])
     await call.message.edit_text(text=text,reply_markup=keyboards.cancel_menu())
 
+@router.callback_query(lambda call: call.data in ['main_open','main_close','hedge_open','hedge_close'])
+async def change_notification_level(call: CallbackQuery, state: FSMContext,db:AsyncSession):
+    notification=await pdb.update_notification(db,call.from_user.id,call.data)
+    text=msg.get_notification_text(notification)
+    await call.message.edit_text(text=text,reply_markup=keyboards.notification_menu(notification))
+
 @router.callback_query(lambda call: call.data in ['api','secret'])
 async def set_api_state(call: CallbackQuery, state: FSMContext):
     data:str=call.data
     await state.set_state(f'Set:{data.upper()}')
     text=msg('api_info') if data=='api' else msg('secret_info')
-    await call.message.edit_text(text=text,reply_markup=keyboards.cancel_menu())
+    await call.message.edit_text(text=text,reply_markup=keyboards.cancel_menu(),parse_mode=ParseMode.HTML)
 
 
 

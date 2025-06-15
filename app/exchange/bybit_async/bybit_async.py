@@ -8,9 +8,10 @@ import asyncio
 from .utils import retrier_async, validate_response
 
 logger = logging.getLogger('trading')
+import urllib.parse
 
 def dict_to_query_string(params: dict) -> str:
-    return '&'.join([f'{key}={value}' for key, value in params.items()])
+    return urllib.parse.urlencode(params, safe='')  # safe='' чтобы закодировалось всё, кроме букв/цифр
 
 class BybitRequester:
     def __init__(self, api_key: str, api_secret: str, testnet: bool, session: aiohttp.ClientSession = None):
@@ -59,8 +60,44 @@ class BybitRequester:
             await self._handle_connection_error()
             raise  # Let the retrier handle this
 
+
+    async def send_signed_request_no_retry(self, method: str, endpoint: str, params: dict) -> dict:
+        session = await self.session
+        time_stamp = str(int(time.time() * 1000))
+        signature = self._gen_signature(params, time_stamp, method)
+        headers = {
+            'X-BAPI-API-KEY': self.api_key,
+            'X-BAPI-SIGN': signature,
+            'X-BAPI-SIGN-TYPE': '2',
+            'X-BAPI-TIMESTAMP': time_stamp,
+            'X-BAPI-RECV-WINDOW': self.recv_window,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        }
+        url = f"{self._get_base_url()}{endpoint}"
+
+        try:
+            if method.upper() == "POST":
+                async with session.post(url, headers=headers, data=json.dumps(params)) as response:
+                    response.raise_for_status()
+                    data = await response.json()
+            elif method.upper() == "GET":
+                query = dict_to_query_string(params)
+                full_url = f"{url}?{query}"
+                async with session.get(full_url, headers=headers) as response:
+                    response.raise_for_status()
+                    data = await response.json()
+            else:
+                raise ValueError(f"Unsupported method: {method}")
+
+            return data
+        except (aiohttp.ClientConnectionError, aiohttp.ClientOSError) as e:
+            logger.error(f"Connection error in send_signed_request: {e}")
+            await self._handle_connection_error()
+            raise
+
     @retrier_async
-    async def send_signed_request(self, method: str, endpoint: str, params: dict) -> dict:
+    async def send_signed_request(self, method: str, endpoint: str, params: dict,reptrier=False) -> dict:
         session = await self.session
         time_stamp = str(int(time.time() * 1000))
         signature = self._gen_signature(params, time_stamp, method)
@@ -94,7 +131,7 @@ class BybitRequester:
         except (aiohttp.ClientConnectionError, aiohttp.ClientOSError) as e:
             logger.error(f"Connection error in send_signed_request: {e}")
             await self._handle_connection_error()
-            raise  # Let the retrier handle this
+            raise
 
     async def _handle_connection_error(self):
         """Handle connection errors by creating a new session."""
@@ -111,22 +148,26 @@ class BybitRequester:
         params = params or {}
         next_cursor = None
         result = []
-
+        last_cursor=None
         while True:
             if next_cursor:
-                next_cursor = next_cursor.replace('%', ':')
-                params['cursor'] = next_cursor
-                params.pop('startTime', None)
-                params.pop('endTime', None)
+                 params['cursor'] = next_cursor
+                # params.pop('startTime', None)
+                # params.pop('endTime', None)
+                # params.pop('category', None)
+
 
             response = await self.send_signed_request(method, endpoint, params)
-            result.extend(response.get('result', {}).get('list', []))
 
-            last_cursor = next_cursor
             next_cursor = response.get('result', {}).get('nextPageCursor')
 
             if not next_cursor or next_cursor == last_cursor:
                 return result
+            else:
+                result.extend(response.get('result', {}).get('list', []))
+
+            last_cursor = next_cursor
+
 
     def _gen_signature(self, params: dict, time_stamp: str, method: str) -> str:
         if method.upper() == "POST":

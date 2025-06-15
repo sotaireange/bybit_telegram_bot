@@ -22,8 +22,13 @@ class User(Base):
     last_sub_time=Column(DateTime(timezone=True,), server_default=text("NOW() + interval '3 days'"))
     sub_until=Column(DateTime(timezone=True,), server_default=text("NOW() + interval '3 days'"))
     is_banned=Column(Boolean, default=False)
+    pnl=Column(Float,default=0)
     bybit_uid=Column(BigInteger,default=None,unique=True)
+
+
     tasks = relationship("Task", back_populates="user")
+    payments = relationship("Payment", back_populates="user")
+    notification = relationship("Notification", back_populates="user", uselist=False)
 
 
 
@@ -41,7 +46,9 @@ class User(Base):
             "balance": self.balance,
             "api": self.api,
             "secret": self.secret,
-            'bybit_uid':self._bybit_uid
+            "pnl": self.pnl,
+            'bybit_uid':self._bybit_uid,
+
         }
 
     def __repr__(self):

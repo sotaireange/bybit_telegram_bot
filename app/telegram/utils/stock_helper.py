@@ -1,12 +1,10 @@
 import asyncio
-from datetime import datetime
 from typing import Dict,List
 import pandas as pd
 import random
 
 from app.db.models import User
-from app.exchange.bybit_async import BybitRequester,get_pnl_from_chunks,get_all_position,get_api_permissions,close_order
-from app.telegram.utils.datetime_helper import get_month_bounds,split_into_weeks,filter_months
+from app.exchange.bybit_async import BybitRequester, get_all_position,get_api_permissions,close_order
 
 testnet=False
 
@@ -36,62 +34,31 @@ async def get_user_positions(user:User) -> List[Dict]:
     return positions
 
 
-
-async def get_pnl_result(bybit_requester:BybitRequester, chunks:List[Dict[str,datetime]]) -> List[Dict]:
-    tasks=[]
-    for chunk in chunks:
-        tasks.append(get_pnl_from_chunks(bybit_requester,chunk))
-    tasks_result=await asyncio.gather(*tasks)
-    result=[item for sublist in tasks_result for item in sublist]
-    return result
-
-
 async def check_permissions(user:User) -> Dict:
+    # TODO: ВАЖНО!!! ПРОВЕРИТЬ ТО ,ЧТО API И SECRET ВАЛИДНЫЙ (RET_CODE=2025-06-10T16:52:59.477886427Z                                send_signed_request() returned exception: "Bybit API Error - retCode: 10003, retMsg: API key is invalid
     flag=user.api and user.secret
     readonly=False
     has_permission=False
+    parentUid=0
     result={}
     if flag:
         client:BybitRequester =BybitRequester(user.api, user.secret, testnet)
         result=await get_api_permissions(client)
         await client.close()
-        permissions=pd.Series(result['permissions'])
-        readonly=result['readOnly']==0
-        has_permission=(permissions['ContractTrade']==['Order','Position'] and
-                        permissions['Options']==['OptionsTrade'] and
-                        permissions['Derivatives']==['DerivativesTrade'])
-
+        if result:
+            permissions=pd.Series(result['permissions'])
+            readonly=result.get('readOnly',-1)==0
+            has_permission=(permissions['ContractTrade']==['Order','Position'] and
+                            permissions['Derivatives']==['DerivativesTrade'])
+            parentUid=result.get('parentUid')
 
     return {'status': readonly and has_permission and flag,
           'readonly': readonly,
           'permissions': has_permission,
           'has_api_secret': flag,
-          'parentUid': result['parentUid'],
+          'parentUid': parentUid,
           'result':result}
 
 
 
 
-async def get_three_month_pnl(user: User) -> Dict[datetime,float]:
-    if not (user.api and user.secret): return {}
-    client:BybitRequester =BybitRequester(user.api, user.secret, testnet)
-    first_day_user=user.first_day
-    months=[get_month_bounds(i,first_day_user) for i in range(3)]
-    months=filter_months(first_day_user,months)
-    chunks=[split_into_weeks(month) for month in months]
-    tasks=[get_pnl_result(client,chunk) for chunk in chunks]
-    results=await asyncio.gather(*tasks)
-    total_pnls = {}
-
-    for chunk, result in zip(chunks, results):
-        if not result:
-            continue
-        # Предположим, что chunk — список словарей с ключом 'startTime'
-        # Возьмём первую дату как начало интервала
-        start_time = chunk[0]['startTime'] if chunk and 'startTime' in chunk[0] else None
-        if start_time is None:
-            continue
-        pnl_sum = sum(float(item['closedPnl']) for item in result if 'closedPnl' in item)
-        total_pnls[start_time] = pnl_sum
-    await client.close()
-    return total_pnls

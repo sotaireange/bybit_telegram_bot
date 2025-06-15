@@ -11,22 +11,21 @@ from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_applicati
 
 from faststream import FastStream
 
+from app.db.database import r, create_tables, drop_tables, close_databases
+from app.db.services.redis_db import RedisClient
 
 from app.common.config import settings
 from app.common.loggers import setup_logging
+from app.telegram.handlers import setup_routers, setup_middlewares
 
-from app.telegram.handlers import setup_routers
-from app.telegram.handlers import setup_middlewares
-from app.telegram.utils.notifications import send_notification
+from app.telegram.utils.infinity_parser import infinity_get_data_coins
+from app.telegram.utils.handle_task import stop_task
+from app.telegram.utils.start_fastream_broker import sub_faststream_tasks
+from app.telegram.payments.freekassa import handle_payment_fk
+from app.telegram.payments.paykassa import handle_payment_pk
 
-from app.db.database import r,create_tables,drop_tables,close_databases
-
-
-from app.worker.broker import create_redis_broker,subscribe_to_telegram_messages
-logger=logging.getLogger('system')
-
-
-
+import json
+logger = logging.getLogger('system')
 
 
 async def on_startup(dispatcher: Dispatcher, bot: Bot):
@@ -35,91 +34,106 @@ async def on_startup(dispatcher: Dispatcher, bot: Bot):
     setup_logging()
     logger.info("Starting telegram bot")
     await bot.delete_webhook(drop_pending_updates=True)
-    if settings.BOT_MODE=='webhook':
+
+    if settings.BOT_MODE == 'webhook':
         await bot.set_webhook(f"{settings.WEBHOOK_URL}{settings.WEBHOOK_PATH}")
 
-    await bot.send_message(chat_id=settings.DEV_ID, text="✅ <b>Bot started</b>")
+    try:
+        await bot.send_message(chat_id=settings.DEV_ID, text="✅ <b>Bot started</b>")
+    except:
+        pass
 
-
-async def on_shutdown(dispatcher: Dispatcher, bot: Bot) -> None:
-    #await broker.stop()
+async def on_shutdown(dispatcher: Dispatcher, bot: Bot):
     await bot.delete_webhook(drop_pending_updates=True)
     await bot.session.close()
     await close_databases()
     await bot.send_message(chat_id=settings.DEV_ID, text="🛑 <b>Bot stopped</b>")
+    await bot.delete_my_commands()
+
+
+async def create_bot_and_dispatcher() -> (Bot,Dispatcher):
+    bot = Bot(token=settings.BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+    storage = RedisStorage(r)
+    dp = Dispatcher(bot=bot, storage=storage)
+    return bot, dp
+
+
+
+async def run_webhook_mode(dp: Dispatcher, bot: Bot, faststream_app: FastStream, background_task):
+    app = web.Application()
+    app['bot'] = bot
+    SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=settings.WEBHOOK_PATH)
+    setup_application(app, dp, bot=bot)
+
+    faststream_task = asyncio.create_task(faststream_app.start()) if faststream_app else None
+
+    app.router.add_post('/payment-pk', handle_payment_pk)
+    #app.router.add_post('/payment-fk', handle_payment_fk)
+
+
+
+    try:
+        await web._run_app(app, host=settings.WEBHOOK_HOST, port=settings.WEBHOOK_PORT)
+    except (KeyboardInterrupt, CancelledError):
+        pass
+    finally:
+        if faststream_app:
+            await faststream_app.stop()
+            await stop_task(faststream_task, "faststream", timeout=2)
+        await stop_task(background_task, "background")
+
+
+async def run_polling_mode(dp: Dispatcher, bot: Bot, faststream_app: FastStream, background_task):
+    faststream_task = asyncio.create_task(faststream_app.start()) if faststream_app else None
+
+    try:
+        await dp.start_polling(bot)
+    except (KeyboardInterrupt, CancelledError):
+        pass
+    finally:
+        if faststream_app:
+            await faststream_app.stop()
+            await stop_task(faststream_task, "faststream", timeout=1)
+        await stop_task(background_task, "background")
+
+
+
 
 
 async def main():
-    logger.info(f"Start {settings.PROJECT_NAME} (sevice: {settings.SERVICE_NAME})")
-    bot = Bot(token=settings.BOT_TOKEN,default=DefaultBotProperties(parse_mode=ParseMode.HTML))
-    storage = RedisStorage(r)
-
-    dp = Dispatcher(bot=bot,storage=storage)
-
-
-
-    broker = None
-    faststream_app = None
-    faststream_task=None
-
+    #TODO: Нужно добавить: 1. Запуск всех запущенных процессов.
+    setup_logging()
+    logger.info(f"Start {settings.PROJECT_NAME} (service: {settings.SERVICE_NAME})")
     if settings.DROP_TABLES:
+        logger.info("Dropping tables")
         await drop_tables()
     await create_tables()
 
-    if settings.USE_BROKER:
-        broker=await create_redis_broker(settings.REDIS_URL)
-        subscribe_to_telegram_messages(broker, lambda msg: send_notification(bot, msg))
-        faststream_app = FastStream(broker=broker)
+    bot, dp = await create_bot_and_dispatcher()
+    await bot.delete_webhook(drop_pending_updates=True)
 
+    broker, faststream_app = await sub_faststream_tasks(bot)
+
+
+    background_task = asyncio.create_task(infinity_get_data_coins(r))
+
+    if broker:
         dp.broker = broker
-
 
     dp.startup.register(on_startup)
     dp.shutdown.register(on_shutdown)
+    dp['broker']=broker
 
+    redis_client=RedisClient(r)
+    await redis_client.initialize()
+    dp['redis_client']=redis_client
 
     if settings.BOT_MODE == 'webhook':
         logger.info("Starting bot in webhook mode")
-        app = web.Application()
-        webhook_handler = SimpleRequestHandler(
-            dispatcher=dp,
-            bot=bot,
-        )
-        webhook_handler.register(app, path=settings.WEBHOOK_PATH)
-        setup_application(app, dp, bot=bot)
-        if faststream_app:
-            faststream_task = asyncio.create_task(faststream_app.start())
-
-        try:
-            await web._run_app(
-                app,
-                host=settings.WEBHOOK_HOST,
-                port=settings.WEBHOOK_PORT
-            )
-        except (KeyboardInterrupt,CancelledError):
-            pass
-        finally:
-            if faststream_app:
-                await faststream_app.stop()
-                await asyncio.wait_for(faststream_task,timeout=1)
+        await run_webhook_mode(dp, bot, faststream_app, background_task)
     else:
         logger.info("Starting bot in polling mode")
-        if faststream_app:
-            faststream_task = asyncio.create_task(faststream_app.start())
-
-        try:
-            await dp.start_polling(bot)
-
-        except (KeyboardInterrupt,CancelledError):
-            pass
-        finally:
-            # Останавливаем FastStream при выходе
-            if faststream_app:
-                await faststream_app.stop()
-                await asyncio.wait_for(faststream_task,timeout=1)
-
-
-
+        await run_polling_mode(dp, bot, faststream_app, background_task)
 
 
 if __name__ == "__main__":

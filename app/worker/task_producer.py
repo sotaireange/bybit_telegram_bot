@@ -4,17 +4,20 @@ import asyncio
 from faststream.redis import RedisBroker, RedisMessage
 from faststream import FastStream
 
+
+
 from app.exchange.user_trade.start_trade import trading
 
 from app.common.config import settings
 from app.db.database import AsyncSessionLocal
 from app.db.models import Task,TaskStatus
 from app.db.models import TaskMessage,TelegramMessage
+from app.worker.broker import subscribe_to_tasks,create_redis_broker,publish_telegram_message
 
 
-from app.worker.broker import subscribe_to_tasks,create_redis_broker
+from faststream.log import logger as faststream_logger
 
-
+faststream_logger.setLevel(logging.WARNING)
 
 logger = logging.getLogger('worker')
 
@@ -27,11 +30,13 @@ class TaskWorker:
 
     async def init(self):
         self.broker = await create_redis_broker(settings.REDIS_URL)
-        self.app = FastStream(broker=self.broker)
+        self.app = FastStream(broker=self.broker,logger=faststream_logger)
+
+
         logger.info('INIT')
         subscribe_to_tasks(self.broker,self.process_task)
 
-
+#TODO: перед запуском проверять висячие задачи, и если они активны - запускать задачу, если нет -включать
     async def process_task(self,msg: TaskMessage):
         try:
             logger.info(f"Task Taked: {msg}")
@@ -44,7 +49,8 @@ class TaskWorker:
                 result_data.update({'status': TaskStatus.COMPLETED,
                                     'result': 'Корректно завершилось'})
             except Exception as e:
-                logger.error(f"Task {task_id} Failed")
+                logger.error(f"Task {task_id} Failed"
+                             f"{e}")
                 result_data.update({'error':str(e),
                                     'status': TaskStatus.FAILED,
                                     'result': 'Ошибка'})
@@ -63,6 +69,8 @@ class TaskWorker:
 
     async def _execute_task(self, task: Task):
         logger.info(f"Task {task.user_id} started")
+
+
         await trading(user_id=task.user_id)
         return True
 

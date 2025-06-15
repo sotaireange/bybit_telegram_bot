@@ -20,7 +20,8 @@ from app.db.models import User, Run
 from app.telegram.keyboards import admin as kbrd
 from app.telegram.filter import Admin
 from app.telegram.fsm import Main,AdminUserSet
-from app.telegram.utils.stock_helper import get_user_positions,get_three_month_pnl, check_permissions,close_all_order_user
+from app.telegram.utils.stock_helper import get_user_positions, check_permissions,close_all_order_user
+from ...utils.pnl_helper import get_user_pnl
 from app.telegram.handlers.admin.admin_messages import msg
 
 from . import router
@@ -81,7 +82,7 @@ async def user_list_callback(call:CallbackQuery, db: AsyncSession,redis_client:R
     text=msg('text_admin_when_stop',user_id)
     has_permissions=await check_permissions(user)
     if has_permissions['status']:
-        pnl=await get_three_month_pnl(user)
+        pnl=await get_user_pnl(user)
         text+=msg.get_user_text(user,pnl,False)
     else:
         text=msg.get_user_text(user,{},False)
@@ -102,7 +103,7 @@ async def admin_settings_callback(call:CallbackQuery, db: AsyncSession,redis_cli
     text=msg('text_admin_when_exit',user_id)
     has_permissions=await check_permissions(user)
     if has_permissions['status']:
-        pnl=await get_three_month_pnl(user)
+        pnl=await get_user_pnl(user)
         text+=msg.get_user_text(user,pnl,False)
     else:
         text=msg.get_user_text(user,{},False)

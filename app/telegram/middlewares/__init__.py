@@ -1,5 +1,6 @@
 from .database_middleware import (DatabaseMiddleware,
                                   RedisMiddleware,
                                   SetValueMiddleware,
-                                  GetUsereMiddleware)
+                                  GetUsersMiddleware)
 from .admin_middleware import AdminSetValueMiddleware
+from .sub_middleware import PaymentAmountMiddleware

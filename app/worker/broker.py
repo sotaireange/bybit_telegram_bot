@@ -22,7 +22,6 @@ async def publish_telegram_message(broker: RedisBroker, telegram_message: Telegr
     await broker.publish(telegram_message, "telegram_message_queue")
 
 
-
 def subscribe_to_tasks(broker: RedisBroker, handler: Callable[[TaskMessage], Awaitable[None]]):
     @broker.subscriber("task_queue")
     async def handle_task(msg: TaskMessage):
@@ -33,5 +32,5 @@ def subscribe_to_tasks(broker: RedisBroker, handler: Callable[[TaskMessage], Awa
 def subscribe_to_telegram_messages(broker: RedisBroker, handler: Callable[[TelegramMessage], Awaitable[None]]):
     @broker.subscriber("telegram_message_queue")
     async def handle_telegram_message(msg: TelegramMessage):
-        logger.info('Receive telegram message_queue')
+        #logger.info('Receive telegram message_queue')
         await handler(msg)

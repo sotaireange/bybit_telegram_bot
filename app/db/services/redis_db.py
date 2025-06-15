@@ -104,6 +104,9 @@ class RedisClient:
 
     async def get_is_run(self, user_id: int) -> Run:
         data = await self.redis.get(f'{self.IS_RUN_KEY}:{user_id}')
+        if data is None:
+            await self.set_is_run(user_id,Run.OFF)
+            data = await self.redis.get(f'{self.IS_RUN_KEY}:{user_id}')
         return Run(json.loads(data)) if data else Run.OFF
 
     async def set_is_run(self, user_id: int, flag:Run):

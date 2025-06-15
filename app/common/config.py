@@ -16,25 +16,35 @@ class Settings(BaseSettings):
     WEBHOOK_HOST: str ='0.0.0.0'
     WEBHOOK_PATH: str ='/webhook'
     WEBHOOK_PORT: int =8080
-    SSL_PATH: str=r'C:\Users\sallo\Desktop\FreeLance\Final Project(WebStorm)\bybit_users'
 
-    URL_NOTIFICATION: str= 'http://127.0.0.1:8000'
+    URL_NOTIFICATION_PK: str = ''
+    API_PASSWORD_PK: str = ''
+    API_ID_PK :int =0
+    SHOP_PK:int=0
+    SHOP_PASSWORD_PK:str=''
+
+    URL_NOTIFICATION_FK: str= 'http://127.0.0.1:8000'
+    FK_API: str = ''
+    FK_SECRET_1: str = ''
+    FK_SECRET_2: str = ''
+    FK_ID: int = 0
+    FK_CURRENCY:str ='USD'
     #PAYMENT_API: List[str]
 
     API_RETRY: int = 1
 
-    FORMAT_CONSOLE_LOG: str = "%(name)s|%(funcName)s| | %(message)s"
+    FORMAT_CONSOLE_LOG: str = "%(name)s|%(module)s | %(funcName)s(%(lineno)d) | %(message)s"
     FORMAT_FILE: str = "%(asctime)s %(levelname)s %(name)s [%(module)s.%(funcName)s(%(lineno)d)] | %(message)s"
     TIME_FORMAT:str='[%X %d-%m-%Y]'
     LOG_DIR:str='/logs'
     LOG_LEVEL:str='DEBUG'
 
 
-    DB_HOST: str = "localhost"
-    DB_PORT: int = 5432
-    DB_USER: str = "postgres"
+    POSTGRES_HOST: str = "localhost"
+    POSTGRES_PORT: int = 5432
+    POSTGRES_USER: str = "postgres"
     POSTGRES_PASSWORD: SecretStr ='0880'
-    DB_NAME: str = "bybit_test"
+    POSTGRES_DB: str = "bybit_test"
 
 
     REDIS_HOST: str = "localhost"
@@ -47,13 +57,18 @@ class Settings(BaseSettings):
     PROJECT_NAME:str='Bybit Telegram Trading'
     USE_BROKER: bool=True
     DROP_TABLES: bool=False
+
+
+
+
     model_config = SettingsConfigDict(env_file_encoding="utf-8")
 
 
 
     @property
     def DB_URL(self) -> str:
-        return f"postgresql+asyncpg://{self.DB_USER}:{self.DB_PASSWORD.get_secret_value()}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
+        return f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD.get_secret_value()}@{self.POSTGRES_HOST
+        }:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
 
     @property
     def REDIS_URL(self) -> str:

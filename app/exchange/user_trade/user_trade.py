@@ -1,12 +1,15 @@
 import logging
 import asyncio
-from typing import Dict,Optional, Hashable, List,Union,Callable
+from typing import Dict,Optional, Hashable, List,Union
+from faststream.redis import RedisBroker
 
 import numpy as np
 import pandas as pd
 
+from app.common.config import settings
+
 from app.db.services import RedisClient
-from app.db.models import Run,TradeSettings,MainPosition,SecondaryPosition
+from app.db.models import Run,TradeSettings,MainPosition,SecondaryPosition,TelegramMessage,NotificationType
 
 
 from app.exchange.bybit_async import BybitRequester
@@ -18,14 +21,21 @@ from app.exchange.user_trade.orders import HedgePositionManager,PositionIdx
 logger=logging.getLogger('trading')
 
 
+
+from app.worker.broker import publish_telegram_message
+
+
 import sys
 if sys.platform.startswith('win'):
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 
+#TODO: Исправить чтобы нен было бессконечный pass:
+# [15:04:15 04-06-2025] DEBUG    trading|user_trade | fetch_coin(311) | FLOCKUSDT is trading. Pass.                                                        user_trade.py:311
+#  DEBUG    trading|user_trade | fetch_coin(311) | FLOCKUSDT is trading. Pass.
+
 class TradeBot:
-    def __init__(self,user_id:int,user_data: Dict,redis_client:RedisClient,
-                 notification: Optional[Callable]=None):
+    def __init__(self,user_id:int,user_data: Dict,redis_client:RedisClient):
         self.is_running: Run= Run.ACTIVE
 
         self.user_id = user_id
@@ -40,11 +50,13 @@ class TradeBot:
         self.hp_manager:HedgePositionManager
 
         self.is_notification=True
-
         self.all_task=[]
-        if notification:
-            self.send_notification=notification
+        self.send_notification=publish_telegram_message
+        self.broker=RedisBroker(settings.REDIS_URL)
 
+
+    async def init_broker(self):
+        await self.broker.start()
 
     def set_client(self,testnet:bool = False):
         self.client:BybitRequester=BybitRequester(self.api_key,self.api_secret,testnet=testnet)
@@ -63,6 +75,13 @@ class TradeBot:
         self.set_client(testnet=False)
         await self.update_settings()
         await self.init_hp_manager()
+        await self.init_broker()
+
+
+    async def exit(self):
+        await self.client.close()
+        await self.broker.close()
+
 
 
     async def check_settings(self):
@@ -73,8 +92,8 @@ class TradeBot:
 
     async def check_running(self):
         while True:
-            self.is_running=Run(await self.redis_client.get_is_run(self.user_id))
-            await asyncio.sleep(1)
+            self.is_running=await self.redis_client.get_is_run(self.user_id)
+            await asyncio.sleep(0.5)
             if self.is_running==Run.OFF:
                 break
 
@@ -83,8 +102,8 @@ class TradeBot:
         balance=await get_balance(self.client)
         if proof_result(balance,dict):
             available_balance=float(balance.get('totalAvailableBalance',0))
-            total_balance=float(balance.get('totalMarginBalance',1))
-            return available_balance/(total_balance+0.000000001) > 0.45
+            total_balance=float(balance.get('totalWalletBalance',1))
+            return available_balance/(total_balance+0.000000001) < self.settings.balance/100
         logger.warning('Balance in have_balance does not dict')
         return False
 
@@ -139,7 +158,7 @@ class TradeBot:
 
     async def check_hedge(self):
         while self.is_running!=Run.OFF:
-            await asyncio.sleep(10)
+            await asyncio.sleep(1)
             for coin in self.hp_manager.get_all_coins():
                 try:
                     price=await self.redis_client.get_mark_price_coin(coin)
@@ -158,8 +177,7 @@ class TradeBot:
         try:
             coin=pd.Series((await self.redis_client.get_coin_info(coin))[coin],name=coin)
             #TODO: Не забыть поставить на проекте к get_mark_price От redis
-            #price = float(await self.redis_client.get_mark_price_coin(coin.name))
-            price=await get_mark_price(self.client,coin.name)
+            price = float(await self.redis_client.get_mark_price_coin(coin.name))
             if price == 0:
                 return
 
@@ -187,7 +205,7 @@ class TradeBot:
             #                  f'Price{price}\n'
             #                  f'order:{order}')
             if not proof_result(order, dict) or order.get('retCode',-1)!=0:
-                logger.info(f'order: {order} symbol: {coin.name}')
+                logger.warning(f'order: {order} symbol: {coin.name}')
                 return
             order=order.get("result")
 
@@ -219,7 +237,8 @@ class TradeBot:
                                 position=await self.hp_manager.remove_secondary_position(symbol)
 
                             if self.is_notification: #and not flag:
-                                #order=await self.get_order(symbol,orderId=position.tpsl_order_id)
+                                msg = TelegramMessage(user_id=self.user_id,type=NotificationType.POSITION_CLOSE, data=position)
+                                await self.send_notification(self.broker,msg)
                                 logger.debug(f'Position {'MAIN' if is_main else 'SECOND'} is over, coin {symbol}')
                 await asyncio.sleep(5)
         except Exception as e:
@@ -274,9 +293,13 @@ class TradeBot:
             position = await self.get_position_due_side(coin, side_entry)
             if isinstance(position, dict) and position:
                 if is_hedge:
-                    await self.hp_manager.set_secondary_position(position, recent_orders['orderId'])
+                    position=await self.hp_manager.set_secondary_position(position, recent_orders['orderId'])
                 else:
-                    await self.hp_manager.set_main_position(position, recent_orders['orderId'])
+                    position=await self.hp_manager.set_main_position(position, recent_orders['orderId'])
+
+                if position and self.is_notification:
+                    msg=TelegramMessage(user_id=self.user_id,type=NotificationType.POSITION_OPEN,data=position)
+                    await self.send_notification(self.broker, msg)
                 logger.debug(f'Set {'hedge' if is_hedge else 'main'} position {coin}')
 
         except Exception as e:
@@ -296,7 +319,7 @@ class TradeBot:
             balance = await get_balance(self.client)
             #TODO: Не забыть поставить на проекте к get_mark_price От redis
             price = float(await self.redis_client.get_mark_price_coin(coin.name))
-            price=await get_mark_price(self.client,coin.name)
+            # price=await get_mark_price(self.client,coin.name)
             if not (proof_result(balance, dict) and price > 0):
                 logger.warning(
                     f"Cannot get balance/price in fetch_coin\n"
@@ -304,7 +327,7 @@ class TradeBot:
                 )
                 return
 
-            available_balance = float(balance.get("totalMarginBalance", 0))
+            available_balance = float(balance.get("totalAvailableBalance", 0))
             amount_in_usdt=max((((self.settings.size / 100) * available_balance) * self.settings.leverage),5)
             raw_amount = (amount_in_usdt / price) +coin.qtyStep
             amount_coin = max(
@@ -322,10 +345,6 @@ class TradeBot:
                 coin.Long,
                 tp_price=tp_price
             ))
-            # if order['retCode']==10001:
-            #     logger.error(f'Failed to fetch coin {coin.name}\n'
-            #                  f'Price{price}\n'
-            #                  f'order:{order}')
 
             if not proof_result(order, dict) or order.get('retCode',-1)!=0:
                 logger.info(f'order: {order} symbol: {coin.name}')
@@ -339,26 +358,13 @@ class TradeBot:
             logger.exception(e)
 
 
-    async def send_notification(user_id:int, position:Union[MainPosition,SecondaryPosition]):
+    async def send_notification(user_id:int, position:Union[MainPosition,SecondaryPosition]=None,**kwargs):
         try:
             logger.info(f'position : {position}')
         except Exception as e:
             logger.error(e)
 
-
-
-    async def start_trade(self):
-        tasks = [
-            self.check_running(),
-            self.check_settings(),
-            self.check_hedge(),
-            self.check_positions()
-        ]
-
-        for task in tasks:
-            self.all_task.append(asyncio.create_task(task))
-
-
+    async def trading_task(self):
         df_info=pd.DataFrame.from_dict(await self.redis_client.get_all_coins_info(),orient='index')
 
         try:
@@ -366,7 +372,7 @@ class TradeBot:
                 while self.is_running==Run.ACTIVE:
                     await switch_position_mode(self.client)
 
-                    if not (await self.have_balance()) or len(self.hp_manager.positions)>80:
+                    if not (await self.have_balance()) or len(self.hp_manager.positions)>self.settings.balance:
                         await asyncio.sleep(120)
                         logger.warning("Haven't Balance or orders>80")
                         continue
@@ -386,11 +392,33 @@ class TradeBot:
                 await asyncio.sleep(1)
 
             await asyncio.sleep(5)
+        except Exception as e:
+            logger.error(f'CRITICAL ERROR {e}')
+
+
+    async def start_trade(self):
+        tasks = [
+            self.check_running(),
+            self.check_settings(),
+            self.check_hedge(),
+            self.check_positions(),
+            self.trading_task()
+        ]
+
+        for task in tasks:
+            self.all_task.append(asyncio.create_task(task))
+
+
+
+        try:
+            while self.is_running!=Run.OFF:
+                await asyncio.sleep(0.5)
         finally:
+            await asyncio.sleep(0.2)
             for task in self.all_task:
                 try:
                     task.cancel()
-                    await asyncio.wait_for(task, timeout=20)
+                    await asyncio.wait_for(task, timeout=5)
 
                 except asyncio.TimeoutError as er:
                     logger.error((f"{task.get_name()} took too long to cancel. {er}"))
@@ -401,5 +429,4 @@ class TradeBot:
                 await self.client.close()
             except Exception as e:
                 logger.error(f'Cannot close session client {e}')
-
 

@@ -14,6 +14,7 @@ class PositionType(str, Enum):
 
 @dataclass
 class Position:
+    symbol: str
     size: float
     amount:float
     entry_price: float
@@ -21,6 +22,7 @@ class Position:
     tpsl_order_id: str
     updated_time:str
     position_type: PositionType
+    leverage:float
 
 
     def to_dict(self):

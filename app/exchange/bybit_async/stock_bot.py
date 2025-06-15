@@ -81,7 +81,7 @@ async def set_leverage(bybit_requester: BybitRequester,
         pass
         #logger.debug(f'{coin} failed set leverage {e}')
     except Exception as e:
-        logger.exception(e)
+        logger.error(e)
 
 
 
@@ -104,7 +104,7 @@ async def switch_position_mode(bybit_requester: BybitRequester) -> Optional[bool
         logger.error(f'Error switch position\n {e}')
         return
     except Exception as e:
-        logger.exception(e)
+        logger.error(e)
         return
 
     return True
@@ -165,7 +165,8 @@ async def get_positions(bybit_requester: BybitRequester,
                      f'{e}')
 
     except Exception as e:
-        logger.exception(e)
+        logger.error(e)
+
 
     finally:
         return response
@@ -183,7 +184,7 @@ async def get_instrument_info(bybit_requester:BybitRequester,symbol:str=None) ->
                      f'{e}')
         return
     except Exception as e:
-        logger.exception(e)
+        logger.error(e)
         return
     return response.get('result',{}).get('list',{})
 
@@ -191,16 +192,15 @@ async def get_instrument_info(bybit_requester:BybitRequester,symbol:str=None) ->
 async def get_api_permissions(bybit_requester:BybitRequester) -> Dict:
     result={}
     try:
-        result=(await bybit_requester.send_signed_request(
+        result=(await bybit_requester.send_signed_request_no_retry(
             method='GET',
             endpoint='/v5/user/query-api',
             params={}
-        ))['result']
-    except BybitApiError as e:
-        logger.error(f'Error get api permisions\n'
-                     f'Error: {e}')
+        ))
+        if result.get('retCode',-1)==0:
+            result= result['result']
     except Exception as e:
-        logger.exception(f'Error get permissions {e}')
+        logger.error(f'Error get permissions {e}')
     finally:
         return result
 
@@ -216,7 +216,7 @@ async def get_balance(bybit_requester:BybitRequester) -> Dict:
     except BybitApiError as e:
         logger.error(f'Error: {e}')
     except Exception as e:
-        logger.exception(f'Error get balance {e}')
+        logger.error(f'Error get balance {e}')
     finally:
         return result
 
@@ -232,7 +232,7 @@ async def get_mark_price(bybit_requester:BybitRequester,
                      f'{e}')
         return 0
     except Exception as e:
-        logger.exception(e)
+        logger.error(e)
         return 0
 
     result=response['result']['list']
@@ -258,7 +258,7 @@ async def get_all_position(bybit_requester:BybitRequester) -> List[Dict]:
                      f'{e}')
 
     except Exception as e:
-        logger.exception(e)
+        logger.error(e)
 
     finally:
         if not response: return []
@@ -292,7 +292,7 @@ async def close_order(bybit_requester:BybitRequester, position:Dict) -> Dict:
                      f'{e}')
 
     except Exception as e:
-        logger.exception(e)
+        logger.error(e)
 
     finally:
         return response
@@ -308,16 +308,16 @@ async def get_pnl_from_chunks(bybit_requester: BybitRequester, chunk:Dict[str,da
         'endTime' : int(chunk['endTime'].timestamp())*1000
     }
 
-    response=[{}]
+    response=[]
     try:
-        response = (await bybit_requester.send_signed_request(
+        response = (await bybit_requester.send_paginated_request(
             method='GET',
             endpoint='/v5/position/closed-pnl',
             params=data
-        ))['result']['list']
+        ))
     except BybitApiError as e:
         logger.error(f'Error switch position\n {e}')
     except Exception as e:
-        logger.exception(e)
+        logger.error(e)
     finally:
         return response

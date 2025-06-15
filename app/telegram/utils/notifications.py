@@ -4,14 +4,34 @@ from aiogram import Bot
 from datetime import datetime
 
 
-from app.db.models import TelegramMessage
+from app.db.models import TelegramMessage,Notification,PositionType,NotificationType
 from app.telegram.utils.messages import msg
+from app.db.services import postgres_db as pdb
+from app.db.database import AsyncSessionLocal
 
+def get_notification_field(position_type: PositionType, notification_type: NotificationType) -> str:
+
+    if position_type == PositionType.MAIN and notification_type == NotificationType.POSITION_OPEN:
+        return 'main_open'
+    elif position_type == PositionType.MAIN and notification_type == NotificationType.POSITION_CLOSE:
+        return 'main_close'
+    elif position_type == PositionType.HEDGE and notification_type == NotificationType.POSITION_OPEN:
+        return 'hedge_open'
+    elif position_type == PositionType.HEDGE and notification_type == NotificationType.POSITION_CLOSE:
+        return 'hedge_close'
+    else:
+        return 'main_open'
 
 
 async def send_notification(bot:Bot, telegram_msg: TelegramMessage):
     user_id=telegram_msg.user_id
-    text=msg.get_stock_message(telegram_msg)
-    text='ТЕСТ'
+    async with AsyncSessionLocal() as session:
+        notification=await pdb.get_notification(session,user_id)
+
+
+    field_name = get_notification_field(telegram_msg.data.position_type, telegram_msg.type)
+    if not getattr(notification, field_name, True):
+        return
+    text=msg.send_order_notification(telegram_msg)
     await bot.send_message(chat_id=user_id,text=text,parse_mode='HTML')
 

@@ -31,8 +31,8 @@ class TradeSettings:
 class CoinSettings:
     volume_long: float = 300_000_000.0
     volume_short: float = 300_000_000.0
-    long_percentage: float = 90.0
-    short_percentage: float = 10.0
+    long_percentage: float = 10.0
+    short_percentage: float = -10.0
     def to_dict(self):
         result = asdict(self)
         return result

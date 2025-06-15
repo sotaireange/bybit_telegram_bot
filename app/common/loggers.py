@@ -12,7 +12,8 @@ if sys.platform == 'win32':
     LOG_DIR = Path('C:/Users/sallo/Desktop/FreeLance/Final Project(WebStorm)/bybit_users/logs').resolve()
     LOG_DIR.mkdir(parents=True, exist_ok=True)
 else:
-    LOG_DIR=settings.LOG_DIR
+    LOG_DIR = Path(settings.LOG_DIR)
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
 
 def get_file_handler(name: str):
     file_path = os.path.join(LOG_DIR, f"{name}.log")
@@ -28,13 +29,17 @@ def get_file_handler(name: str):
 
 
 def setup_fast_streamlogging(
-        level: int = logging.INFO,
+        level: int = logging.WARNING,
 ):
     for logger_name in logging.root.manager.loggerDict:
         if logger_name.startswith('faststream'):
             logger = logging.getLogger(logger_name)
             logger.setLevel(level)
             logger.addHandler(get_file_handler("worker"))
+
+
+    faststream_root = logging.getLogger('faststream')
+    faststream_root.setLevel(level)
 
 def setup_logging(rich:bool=True):
     level=logging.getLevelName(settings.LOG_LEVEL)
@@ -92,10 +97,11 @@ def setup_logging(rich:bool=True):
     logger_worker.addHandler(get_file_handler("worker"))
 
 
-    logger_worker = logging.getLogger('worker')
-    logger_worker.setLevel(level)
-    logger_worker.addHandler(get_file_handler("worker"))
+    logger_payment = logging.getLogger('payment')
+    logger_payment.setLevel(level)
+    logger_payment.addHandler(get_file_handler("payment"))
 
-    setup_fast_streamlogging(logging.DEBUG)
+
+
 
 

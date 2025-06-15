@@ -12,7 +12,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Копирование кода приложения
-COPY app /app
+COPY app/ app
 
 ENV PYTHONPATH=/app
 ENV PYTHONDONTWRITEBYTECODE=1

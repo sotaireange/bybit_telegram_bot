@@ -71,7 +71,7 @@ class HedgePositionManager:
             self,
             position_data: Dict[str,str],
             take_profit_order_id:str
-    ):
+    ) -> MainPosition:
         coin = position_data.get("symbol")
         position_idx = PositionIdx(safe_float(position_data.get("positionIdx", 0)))
         size=safe_float(position_data.get('size'))
@@ -93,7 +93,8 @@ class HedgePositionManager:
         else:
             tracking_price=entry_price * (1 + self.settings.hedge_percentage / 100)
 
-        self.positions[coin].main_position = MainPosition(
+        position=MainPosition(
+            symbol=coin,
             size=size,
             amount=amount,
             position_idx=position_idx,
@@ -102,19 +103,22 @@ class HedgePositionManager:
             tpsl_order_id=take_profit_order_id,
             tracking_price=tracking_price,
             updated_time=updated_time,
-            position_type=PositionType.MAIN
+            position_type=PositionType.MAIN,
+            leverage=self.settings.leverage
         )
+        self.positions[coin].main_position = position
 
 
 
         await self.save_position_to_redis(coin)
+        return position
 
 
     async def set_secondary_position(
             self,
             position_data: Dict[str,str],
             stop_loss_order_id:str
-    ):
+    ) -> SecondaryPosition:
         coin = position_data.get("symbol")
         position_idx = PositionIdx(safe_float(position_data.get("positionIdx", 0)))
         size=safe_float(position_data.get('size'))
@@ -129,7 +133,8 @@ class HedgePositionManager:
         position=self.get_position(coin)
         if position:
             try:
-                self.positions[coin].secondary_position = SecondaryPosition(
+                position=SecondaryPosition(
+                    symbol=coin,
                     size=size,
                     amount=amount,
                     position_idx=position_idx,
@@ -137,9 +142,14 @@ class HedgePositionManager:
                     updated_time=updated_time,
                     stop_loss_price=stop_loss,
                     tpsl_order_id=stop_loss_order_id,
-                    position_type=PositionType.HEDGE
+                    position_type=PositionType.HEDGE,
+                    leverage=self.settings.leverage
+
                 )
+                self.positions[coin].secondary_position = position
+
                 await self.save_position_to_redis(coin)
+                return position
             except KeyError:
                 pass
 

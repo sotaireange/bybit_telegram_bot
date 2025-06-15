@@ -1,7 +1,8 @@
 import logging
 import asyncio
 from typing import Dict
-
+from aiohttp.client_exceptions import ClientConnectorDNSError
+import aiohttp
 from .exceptions import BybitApiError
 
 from app.common.config import settings
@@ -11,12 +12,10 @@ logger=logging.getLogger('trading')
 
 API_RETRY_COUNT = settings.API_RETRY
 
-SKIP_RET_CODE= [0]#[0,10001,110043,30209,30208]
+SKIP_RET_CODE= [0,10001,110043]#[0,10001,110043,30209,30208] # SKIP RET CODE, IT WILL PASS WHEN RAISE RET MSG
 
 def calculate_backoff(retrycount, max_retries):
-    """
-    Calculate backoff
-    """
+
     return (max_retries - retrycount) ** 2 + 1
 
 
@@ -34,7 +33,7 @@ def retrier_async(f):
         try:
             return await f(*args, **kwargs)
         except BybitApiError as ex:
-            if ex.ret_code in [0,10001,110043,30209,30208]:
+            if ex.ret_code in SKIP_RET_CODE:
                 return await f(*args, **kwargs)
             msg = f'{f.__name__}() returned exception: "{ex}". '
             if count > 0:
@@ -47,7 +46,26 @@ def retrier_async(f):
                 #                  f"Data: {kwargs}")
                 return await wrapper(*args, **kwargs)
             else:
+                logger.error(f"Connection error after all retries:\n"
+                             f"{args} {kwargs}\n"
+                             f"{msg}")
                 raise ex
+
+
+        except (ClientConnectorDNSError, aiohttp.ClientConnectionError) as e:
+            msg = f'{f.__name__}() returned exception: "{e}". '
+            if count > 0:
+                count -= 1
+                kwargs["count"] = count
+                backoff_delay = calculate_backoff(count + 1, API_RETRY_COUNT)
+                logger.warning(f"Connection error: {e}, retrying in {backoff_delay} seconds. Attempts left: {count}")
+                await asyncio.sleep(backoff_delay*2)
+                return await wrapper(*args, **kwargs)
+            else:
+                logger.error(f"Connection error after all retries:\n"
+                             f"{msg}\n"
+                             f"{args} {kwargs}")
+                raise e
 
         except Exception as e:
             logger.error(f"Exception raised: {e} ")
