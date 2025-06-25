@@ -103,7 +103,7 @@ class TradeBot:
         if proof_result(balance,dict):
             available_balance=float(balance.get('totalAvailableBalance',0))
             total_balance=float(balance.get('totalWalletBalance',1))
-            return available_balance/(total_balance+0.000000001) < self.settings.balance/100
+            return available_balance/(total_balance+0.000000001) > (1-self.settings.balance/100)
         logger.warning('Balance in have_balance does not dict')
         return False
 
@@ -121,6 +121,14 @@ class TradeBot:
             return (len_p==2 and all(size))
         logger.warning('Position  does not list')
         return True
+
+    async def have_position(self,coin: Hashable) -> bool:
+        positions=await get_positions(self.client,coin)
+        if proof_result(positions,list):
+            size=[float(position.get('size',0)) for position in positions]
+            return any(size)
+        logger.warning('Position  does not list')
+        return False
 
 
     async def coin_in_trade(self, coin: Hashable) -> bool:
@@ -158,7 +166,7 @@ class TradeBot:
 
     async def check_hedge(self):
         while self.is_running!=Run.OFF:
-            await asyncio.sleep(1)
+            await asyncio.sleep(2)
             for coin in self.hp_manager.get_all_coins():
                 try:
                     price=await self.redis_client.get_mark_price_coin(coin)
@@ -166,7 +174,9 @@ class TradeBot:
                     if should_hedge:
                         have_both_position=await self.have_both_side_position(coin)
                         if not have_both_position:
-                            await self.fetch_hedge_coin(coin)
+                            have_one_position= await self.have_position(coin)
+                            if have_one_position:
+                                await self.fetch_hedge_coin(coin)
                 except Exception as e:
                     logger.exception(e)
                 await asyncio.sleep(0.1)
@@ -176,8 +186,9 @@ class TradeBot:
     async def fetch_hedge_coin(self,coin:str):
         try:
             coin=pd.Series((await self.redis_client.get_coin_info(coin))[coin],name=coin)
-            #TODO: Не забыть поставить на проекте к get_mark_price От redis
-            price = float(await self.redis_client.get_mark_price_coin(coin.name))
+            # price = float(await self.redis_client.get_mark_price_coin(coin.name))
+            price=await get_mark_price(self.client,coin.name)
+
             if price == 0:
                 return
 
@@ -200,12 +211,8 @@ class TradeBot:
                 sl_price=sl_price
             ))
 
-            # if order['retCode']==10001:
-            #     logger.error(f'Failed to fetch coin {coin.name}\n'
-            #                  f'Price{price}\n'
-            #                  f'order:{order}')
             if not proof_result(order, dict) or order.get('retCode',-1)!=0:
-                logger.warning(f'order: {order} symbol: {coin.name}')
+                logger.debug(f'order: {order} symbol: {coin.name}')
                 return
             order=order.get("result")
 
@@ -222,19 +229,22 @@ class TradeBot:
             while self.is_running!=Run.OFF:
                 need_delete=await self.get_delete_positions()
                 if need_delete:
-                    #TODO: Сделать двойную проверку под position непосредственно монетки
                     for pos in need_delete:
+                        #TODO: Проблема со спамом монетки в строчке 238. Сппамит бесконечно.
+                        # Разорбат ьс нуля этот момент и проверить БД
+
+
                         is_main=pos.get('is_main',True)
                         symbol=pos.get('symbol')
                         if symbol:
                             if is_main:
-                                # flag=await self.coin_in_trade(coin=symbol)
-                                # if not flag:
-                                position=await self.hp_manager.remove_main_position(symbol)
+                                flag=await self.coin_in_trade(coin=symbol)
+                                if not flag:
+                                    position=await self.hp_manager.remove_main_position(symbol)
                             else:
-                                # flag=await self.have_both_side_position(coin=symbol)
-                                # if not flag:
-                                position=await self.hp_manager.remove_secondary_position(symbol)
+                                flag=await self.have_both_side_position(coin=symbol)
+                                if not flag:
+                                    position=await self.hp_manager.remove_secondary_position(symbol)
 
                             if self.is_notification: #and not flag:
                                 msg = TelegramMessage(user_id=self.user_id,type=NotificationType.POSITION_CLOSE, data=position)
@@ -275,7 +285,7 @@ class TradeBot:
         try:
             order_entry = await self.get_order(coin, order['orderId'])
             if not order_entry or order_entry['orderStatus'] == 'Cancelled':
-                #logger.debug(f"User: {self.user_id} Coin: {coin} hasn't order status {order_entry.get('orderStatus')}")
+                logger.debug(f"User: {self.user_id} Coin: {coin} hasn't order status {order_entry.get('orderStatus')}")
                 return
             side_entry = order_entry['side']
 
@@ -317,9 +327,7 @@ class TradeBot:
             await set_leverage(self.client, coin.name, leverage=self.settings.leverage)
 
             balance = await get_balance(self.client)
-            #TODO: Не забыть поставить на проекте к get_mark_price От redis
-            price = float(await self.redis_client.get_mark_price_coin(coin.name))
-            # price=await get_mark_price(self.client,coin.name)
+            price=await get_mark_price(self.client,coin.name)
             if not (proof_result(balance, dict) and price > 0):
                 logger.warning(
                     f"Cannot get balance/price in fetch_coin\n"
@@ -373,8 +381,10 @@ class TradeBot:
                     await switch_position_mode(self.client)
 
                     if not (await self.have_balance()) or len(self.hp_manager.positions)>self.settings.balance:
-                        await asyncio.sleep(120)
-                        logger.warning("Haven't Balance or orders>80")
+                        balance=await get_balance(self.client)
+
+                        await asyncio.sleep(10)
+                        logger.warning(f"Haven't Balance or orders>80 \n{balance}\n{len(self.hp_manager.positions)} {self.settings.balance}")
                         continue
 
                     coins=pd.DataFrame.from_dict(await self.redis_client.get_coins(),orient='index')
@@ -430,3 +440,5 @@ class TradeBot:
             except Exception as e:
                 logger.error(f'Cannot close session client {e}')
 
+
+#%%

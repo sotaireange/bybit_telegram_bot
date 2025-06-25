@@ -106,7 +106,6 @@ services:
     image: redis:7-alpine
     command:
       - redis-server
-      - '--loglevel notice'
       - '--requirepass ${REDIS_PASSWORD}'
       - '--rename-command SLAVEOF ""'
       - '--rename-command REPLICAOF "" '

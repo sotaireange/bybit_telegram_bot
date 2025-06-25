@@ -17,7 +17,7 @@ from app.telegram import keyboards
 from app.telegram.fsm import Main
 from . import navigate_router as router
 from app.telegram.utils.messages import msg
-from app.telegram.utils.stock_helper import check_permissions, get_user_positions
+from app.telegram.utils.stock_helper import check_permissions, get_user_positions,close_all_order_user
 from ...utils.pnl_helper import get_user_pnl
 
 logger = logging.getLogger('aiogram')
@@ -33,6 +33,7 @@ async def setup_commands(bot: Bot):
         BotCommand(command="start", description="🚀 Запустить бота"),
         BotCommand(command="menu", description="📋 Главное меню"),
         BotCommand(command="positions", description="📊 Мои позиции"),
+        BotCommand(command="total_exit",description="Выход из всех позиций! "),
     ]
     await bot.set_my_commands(commands)
 
@@ -80,7 +81,10 @@ async def position_callback(call: CallbackQuery,user:User):
     positions=await get_user_positions(user)
     pnl=await get_user_pnl(user)
     text=msg.get_pnl_text(pnl)+msg.get_position_text(positions)
-    await call.message.edit_text(text,reply_markup=keyboards.position_update(),parse_mode='HTML')
+    try:
+        await call.message.edit_text(text,reply_markup=keyboards.position_update(),parse_mode='HTML')
+    except:
+        pass
 
 
 @router.message(Command('positions'))
@@ -98,6 +102,19 @@ async def notification_callback(call: CallbackQuery,db:AsyncSession):
     text=msg.get_notification_text(notification)
     await call.message.edit_text(text=text,reply_markup=keyboards.notification_menu(notification))
 
+
+@router.message(Command('exit'))
+async def exit_order_handler(message: Message, redis_client: RedisClient, user: User):
+    user_id=message.from_user.id
+    user=await get_user_positions(user)
+    text = msg.get_exit_orders_text(user, pnl)
+    await message.answer(text, reply_markup=keyboards.main_menu(flag=run))
+    await message.delete()
+
+async def confirm_exit_order_handler(call:CallbackQuery, redis_client: RedisClient,user:User):
+    user_id=call.from_user.id
+    run = await redis_client.set_is_run(user_id,Run.OFF)
+
 @router.my_chat_member()
 async def check_blocked_handler(message: ChatMemberUpdated, db:AsyncSession, redis_client:RedisClient):
     if message.chat.type == 'private':
@@ -107,6 +124,9 @@ async def check_blocked_handler(message: ChatMemberUpdated, db:AsyncSession, red
             await pdb.update_user_fields(db,user_id,{'is_banned': True})
         elif message.new_chat_member.status == "member":
             await pdb.update_user_fields(db,user_id,{'is_banned': False})
+
+
+
 
 
 # @router.callback_query(lambda call: call.data=='settings')

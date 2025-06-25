@@ -9,7 +9,8 @@ from app.db.services import RedisClient, postgres_db as pdb
 from app.db.models import Run
 from app.common.config import settings
 from app.exchange.user_trade.user_trade import TradeBot
-
+from app.worker.broker import publish_telegram_message
+from app.db.models import TelegramMessage,NotificationType
 
 
 logger = logging.getLogger('trading')
@@ -28,14 +29,13 @@ async def trading(user_id:int):
                 logger.debug('Start Trade')
                 await bot.start_trade()
                 break
-            except ClientConnectorDNSError as e: #TODO: Будущая возможная ошибка. Нужно сразу завершить и отправить сообщение об ошибке
+            except ClientConnectorDNSError as e:
                 await redis_client.set_is_run(user_id,Run.OFF)
                 bot.is_running=Run.OFF
-                logger.error(f'Connection error: {e}, retrying in 10 minutes...\n'
+                logger.exception(f'Connection error: {e}, retrying in 10 minutes...\n'
                              f'user_id={user_id}')
-                # await asyncio.sleep(100)
-                # await redis_client.set_is_run(user_id,Run.ACTIVE)
-                # bot.is_running=Run.ACTIVE
+                tg_msg=TelegramMessage(user_id=user_id,type=NotificationType.ERROR,data=None)
+                await publish_telegram_message(broker=bot.broker,telegram_message=tg_msg)
     finally:
         await bot.exit()
 

@@ -62,3 +62,9 @@ def notification_menu(notification:Notification):
     markup.row(InlineKeyboardButton(text=f"{'🔴Выкл' if notification.hedge_close else '🟢Вкл'} выход хедж",callback_data="hedge_close"))
     markup.row(InlineKeyboardButton(text="Назад",callback_data="main_menu"))
     return markup.as_markup()
+
+
+def proof_to_exit_orders():
+    markup = InlineKeyboardBuilder()
+    markup.row(InlineKeyboardButton(text=f'ДА!',callback_data="yes_exit"))
+    return markup.as_markup()

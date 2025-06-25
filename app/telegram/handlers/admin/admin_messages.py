@@ -40,7 +40,7 @@ class AdminMsgBuilder(MessageBuilder):
             text+= f'{user.username}: id-{user.id} {is_run_text}\n'
         return text
 
-    @classmethod #TODO: надо будет исправить логику вывода pnl
+    @classmethod
     def get_user_text(cls,user: User,pnl: pd.DataFrame,is_run: bool) -> str:
         text=f'{user.username}: id - {user.id} {'ON' if is_run else 'OFF'}\n'
         text+=cls.get_sub_text(user)

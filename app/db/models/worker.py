@@ -23,9 +23,10 @@ class TaskMessage(BaseModel):
 class NotificationType(str,Enum):
     POSITION_CLOSE='position_close'
     POSITION_OPEN='position_open'
+    ERROR='error'
 
 class TelegramMessage(BaseModel):
     user_id: int
     type:NotificationType
-    data: Union[MainPosition,SecondaryPosition]
+    data: Union[MainPosition,SecondaryPosition,None]
 

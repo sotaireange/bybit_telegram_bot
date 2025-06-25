@@ -60,7 +60,10 @@ async def user_list_callback(call:CallbackQuery, db: AsyncSession,redis_client:R
     else:
         text=msg.get_user_text(user,{},False)
         text+=msg.get_permission_text(has_permissions)
-    await call.message.edit_text(text,reply_markup=kbrd.user_menu(user))
+    try:
+        await call.message.edit_text(text,reply_markup=kbrd.user_menu(user))
+    except:
+        pass
 
 
 

@@ -32,6 +32,9 @@ async def send_notification(bot:Bot, telegram_msg: TelegramMessage):
     field_name = get_notification_field(telegram_msg.data.position_type, telegram_msg.type)
     if not getattr(notification, field_name, True):
         return
-    text=msg.send_order_notification(telegram_msg)
+    if telegram_msg.type == NotificationType.ERROR:
+        text=msg('error_when_trading')
+    else:
+        text=msg.send_order_notification(telegram_msg)
     await bot.send_message(chat_id=user_id,text=text,parse_mode='HTML')
 

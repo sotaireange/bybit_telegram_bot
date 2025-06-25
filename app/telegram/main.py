@@ -8,7 +8,7 @@ from aiogram.enums import ParseMode
 from aiogram.client.bot import DefaultBotProperties
 from aiogram.fsm.storage.redis import RedisStorage
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
-
+from aiogram.exceptions import TelegramNetworkError
 from faststream import FastStream
 
 from app.db.database import r, create_tables, drop_tables, close_databases
@@ -33,10 +33,6 @@ async def on_startup(dispatcher: Dispatcher, bot: Bot):
     setup_middlewares(dispatcher)
     setup_logging()
     logger.info("Starting telegram bot")
-    await bot.delete_webhook(drop_pending_updates=True)
-
-    if settings.BOT_MODE == 'webhook':
-        await bot.set_webhook(f"{settings.WEBHOOK_URL}{settings.WEBHOOK_PATH}")
 
     try:
         await bot.send_message(chat_id=settings.DEV_ID, text="✅ <b>Bot started</b>")
@@ -45,8 +41,6 @@ async def on_startup(dispatcher: Dispatcher, bot: Bot):
 
 async def on_shutdown(dispatcher: Dispatcher, bot: Bot):
     await bot.delete_webhook(drop_pending_updates=True)
-    await bot.session.close()
-    await close_databases()
     await bot.send_message(chat_id=settings.DEV_ID, text="🛑 <b>Bot stopped</b>")
     await bot.delete_my_commands()
 
@@ -59,7 +53,7 @@ async def create_bot_and_dispatcher() -> (Bot,Dispatcher):
 
 
 
-async def run_webhook_mode(dp: Dispatcher, bot: Bot, faststream_app: FastStream, background_task):
+async def run_webhook_mode(dp: Dispatcher, bot: Bot, faststream_app: FastStream):
     app = web.Application()
     app['bot'] = bot
     SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=settings.WEBHOOK_PATH)
@@ -75,29 +69,51 @@ async def run_webhook_mode(dp: Dispatcher, bot: Bot, faststream_app: FastStream,
     try:
         await web._run_app(app, host=settings.WEBHOOK_HOST, port=settings.WEBHOOK_PORT)
     except (KeyboardInterrupt, CancelledError):
-        pass
+        raise
     finally:
         if faststream_app:
             await faststream_app.stop()
             await stop_task(faststream_task, "faststream", timeout=2)
-        await stop_task(background_task, "background")
 
 
-async def run_polling_mode(dp: Dispatcher, bot: Bot, faststream_app: FastStream, background_task):
+async def run_polling_mode(dp: Dispatcher, bot: Bot, faststream_app: FastStream):
     faststream_task = asyncio.create_task(faststream_app.start()) if faststream_app else None
 
     try:
         await dp.start_polling(bot)
     except (KeyboardInterrupt, CancelledError):
-        pass
+        raise
     finally:
         if faststream_app:
             await faststream_app.stop()
             await stop_task(faststream_task, "faststream", timeout=1)
-        await stop_task(background_task, "background")
 
 
 
+async def wait_for_dns_with_limit(host='api.telegram.org', interval=30, max_attempts=5):
+    """Ожидание DNS с ограничением попыток"""
+    for attempt in range(1, max_attempts + 1):
+        try:
+            logger.info(f"🔍 DNS check attempt {attempt}/{max_attempts} for {host}")
+
+            loop = asyncio.get_event_loop()
+            await asyncio.wait_for(
+                loop.getaddrinfo(host, 443),
+                timeout=10.0
+            )
+
+            logger.info(f"✅ {host} is available!")
+            return True
+
+        except Exception as e:
+            logger.warning(f"❌ Attempt {attempt}/{max_attempts} failed: {e}")
+
+            if attempt < max_attempts:
+                logger.info(f"⏳ Waiting {interval}s before next attempt...")
+                await asyncio.sleep(interval)
+            else:
+                logger.error(f"🔴 All {max_attempts} attempts failed. Giving up.")
+                return False
 
 
 async def main():
@@ -127,14 +143,38 @@ async def main():
     redis_client=RedisClient(r)
     await redis_client.initialize()
     dp['redis_client']=redis_client
+    while True:
+        try:
+            if not await wait_for_dns_with_limit():
+                logger.error("DNS unavailable after 5 attempts. Exiting.")
+                return
+            if settings.BOT_MODE == 'webhook':
+                try:
+                    webhook_url = f"{settings.WEBHOOK_URL}{settings.WEBHOOK_PATH}"
+                    await bot.set_webhook(webhook_url)
+                    logger.info(f"Webhook set to: {webhook_url}")
+                except Exception as e:
+                    logger.error(f"Failed to set webhook: {e}")
+                    raise
+                logger.info("Starting bot in webhook mode")
+                await run_webhook_mode(dp, bot, faststream_app)
+            else:
+                logger.info("Starting bot in polling mode")
+                await run_polling_mode(dp, bot, faststream_app)
+            logger.warning("Bot stopped unexpectedly")
+            break
+        except TelegramNetworkError as e:
+            logger.error(f"Error: {e}")
+            logger.info("Restarting in 30 seconds...")
+            await asyncio.sleep(10)
+        except (KeyboardInterrupt, CancelledError):
+            break
+        except Exception as error:
+            break
 
-    if settings.BOT_MODE == 'webhook':
-        logger.info("Starting bot in webhook mode")
-        await run_webhook_mode(dp, bot, faststream_app, background_task)
-    else:
-        logger.info("Starting bot in polling mode")
-        await run_polling_mode(dp, bot, faststream_app, background_task)
-
+        await bot.session.close()
+        await close_databases()
+        await stop_task(background_task, "background")
 
 if __name__ == "__main__":
     import sys

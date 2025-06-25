@@ -51,7 +51,7 @@ async def run(call: CallbackQuery, state: FSMContext,redis_client:RedisClient,us
     task=await Task.create_task(db,user_id=user_id)
     task_msg=TaskMessage(task_id=task.id,user_id=user_id,task_type=TaskType.MAIN)
     await redis_client.set_is_run(user_id,Run.ACTIVE)
-
+    logger.info(f'ALARM! {user_id} START BOT ')
     await publish_task(broker,task_msg)
 
 
@@ -80,6 +80,8 @@ async def unrun(call: CallbackQuery, state: FSMContext,redis_client:RedisClient,
     text=msg('user_when_stop')
     text_menu= msg.get_menu_text(user, Run.OFF)
     text=text+text_menu
+    logger.info(f'ALARM! {user_id} STOP BOT!!!! ')
+
     await call.message.edit_text(text=text,reply_markup=keyboards.main_menu(Run.OFF))
 
 

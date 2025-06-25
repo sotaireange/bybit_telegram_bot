@@ -57,6 +57,8 @@ class MessageBuilder:
         "user_failed_get_url_pk":"Не удалось получить ссылку на оплату на PayKassa.\n"
                               "Свяжитесь с администратором.",
         "payment_not_need" : "Оплата не требуется",
+        "error_when_trading": "Возникла ошибка по время торговли.\n"
+                              "Уведомите администратора."
     }
 
     months = {
@@ -250,5 +252,9 @@ class MessageBuilder:
               f'Закрытие Хэджирование {"🟢" if notification.hedge_close else "🔴"}\n')
         return text
 
+    def get_exit_orders_text(self,pnl:float):
+        text=(f'Если выйти из всех позиций, ожидаемый убыток составит {pnl:.2f}$\n'
+              f'Вы уверены?')
+        return text
 
 msg=MessageBuilder()

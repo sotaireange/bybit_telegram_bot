@@ -9,7 +9,6 @@ from app.exchange.bybit_async import BybitApiError
 
 logger=logging.getLogger('trading')
 
-#TODO: ПЕРЕСМОТРЕТЬ КАКИЕ ДАННЫЕ ВОЗВРАЩАЮТСЯ ЕСЛИ БОЛЬШАЯ ОШИБКА
 
 async def place_order(
         bybit_requester: BybitRequester,

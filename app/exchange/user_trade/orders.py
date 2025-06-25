@@ -186,7 +186,7 @@ class HedgePositionManager:
         df=pd.DataFrame(positions)
         df['updatedTime']=df['updatedTime'].astype(int)
         df.sort_values(by=['symbol','updatedTime'],inplace=True,ascending=[False,True])
-        #TODO: что-то типо такого нужно сделать. Если вдруг при входе сихронизировать БД привязка с createdTime
+
 
     def get_tp_order(self,coin:str) -> Optional[str]:
         if coin in self.positions:

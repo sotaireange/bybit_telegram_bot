@@ -9,7 +9,7 @@ from app.exchange.bybit_async import BybitRequester, get_all_position,get_api_pe
 testnet=False
 
 
-async def close_all_order_user(user:User): #TODO Проблема с тем, то что не все позиции закрываются. НУжно сделать двойное-тройное закрытие
+async def close_all_order_user(user:User):
     client:BybitRequester =BybitRequester(user.api, user.secret, False)
     try:
         positions = await get_all_position(client)
@@ -35,7 +35,6 @@ async def get_user_positions(user:User) -> List[Dict]:
 
 
 async def check_permissions(user:User) -> Dict:
-    # TODO: ВАЖНО!!! ПРОВЕРИТЬ ТО ,ЧТО API И SECRET ВАЛИДНЫЙ (RET_CODE=2025-06-10T16:52:59.477886427Z                                send_signed_request() returned exception: "Bybit API Error - retCode: 10003, retMsg: API key is invalid
     flag=user.api and user.secret
     readonly=False
     has_permission=False

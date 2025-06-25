@@ -22,7 +22,7 @@ def calculate_backoff(retrycount, max_retries):
 def validate_response(response: Dict,endpoing:str,params:Dict) -> None:
     if not isinstance(response, dict) or 'retCode' not in response or 'retMsg' not in response:
         raise ValueError(f"Unexpected response format: {response}")
-    if response['retCode'] not in SKIP_RET_CODE: #TODO: нужно будет убрать 10001
+    if response['retCode'] not in SKIP_RET_CODE:
         #logger.warning(f'Bybit Api Error {endpoing} \n Params {params}\nResponse {response}')
         raise BybitApiError(response)
 

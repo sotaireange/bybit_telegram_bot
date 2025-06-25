@@ -24,8 +24,6 @@ from . import setting_router as router
 
 logger = logging.getLogger('telegram')
 
-#TODO: Возможность сделать Изменение notification. 
-
 
 @router.callback_query(lambda call: call.data in [])#['leverage','size','balance','take_profit'])
 async def set_state(call: CallbackQuery, state: FSMContext):

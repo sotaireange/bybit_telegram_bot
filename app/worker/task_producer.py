@@ -37,6 +37,7 @@ class TaskWorker:
         subscribe_to_tasks(self.broker,self.process_task)
 
 #TODO: перед запуском проверять висячие задачи, и если они активны - запускать задачу, если нет -включать
+#TODO: Так же нужно будет когда запускаем все процессы - Ищем по задача
     async def process_task(self,msg: TaskMessage):
         try:
             logger.info(f"Task Taked: {msg}")
@@ -69,8 +70,6 @@ class TaskWorker:
 
     async def _execute_task(self, task: Task):
         logger.info(f"Task {task.user_id} started")
-
-
         await trading(user_id=task.user_id)
         return True
 

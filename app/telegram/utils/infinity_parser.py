@@ -52,8 +52,8 @@ async def get_all_tickers(exchange: ccxt,data_for_coins: Dict) -> pd.DataFrame:
     df= df.astype(float)
     df['price24hPcnt']*=100
 
-    df['Long']=((df['price24hPcnt']<=data_for_coins.get('long_percentage',10))& (df['turnover24h']>data_for_coins.get('volume_long',30_000_000)))
-    df['Short']=((df['price24hPcnt']>=data_for_coins.get('short_percentage',-10))& (df['turnover24h']>data_for_coins.get('volume_short',30_000_000)))
+    df['Long']=((df['price24hPcnt']<=data_for_coins.get('long_percentage',-10))& (df['turnover24h']>data_for_coins.get('volume_long',30_000_000)))
+    df['Short']=((df['price24hPcnt']>=data_for_coins.get('short_percentage',10))& (df['turnover24h']>data_for_coins.get('volume_short',30_000_000)))
 
 
     return df
@@ -83,7 +83,7 @@ async def infinity_get_data_coins(redis: Redis):
                     await redis_client.save_coins_info(data)
                     last_info_update = now
 
-                global_coin_settings=(await redis_client.get_all_trade_settings()).to_dict()
+                global_coin_settings=(await redis_client.get_all_coin_settings()).to_dict()
                 df = await get_all_tickers(exchange,global_coin_settings)
 
 
@@ -94,10 +94,11 @@ async def infinity_get_data_coins(redis: Redis):
                 df=df.drop(columns=drop_columns,axis=1)
                 df=df[df.any(axis=1)]
                 data=df.to_dict(orient='index')
-                await redis_client.save_coins(data)
+                if data:
+                    await redis_client.save_coins(data)
 
 
-                await asyncio.sleep(0.5)
+                await asyncio.sleep(1)
 
             except RequestTimeout as ReqEr:
                 logger.error(f"Request Timeout {ReqEr}")

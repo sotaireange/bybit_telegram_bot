@@ -97,7 +97,7 @@ class BybitRequester:
             raise
 
     @retrier_async
-    async def send_signed_request(self, method: str, endpoint: str, params: dict,reptrier=False) -> dict:
+    async def send_signed_request(self, method: str, endpoint: str, params: dict) -> dict:
         session = await self.session
         time_stamp = str(int(time.time() * 1000))
         signature = self._gen_signature(params, time_stamp, method)
