@@ -6,7 +6,7 @@ from pydantic import SecretStr
 
 
 class Settings(BaseSettings):
-    BOT_TOKEN: str = '7426379906:AAHAkMY4Gg8Yrg7NQAXo17eCfaLAHIaawt4'
+    BOT_TOKEN: str = '7748113385:AAHFjheEl1HCZw3I_lyMpERXnFvEwBDoyvw'
     ADMIN_IDS: List[int] =[6422309975]
     DEV_ID: int = 6422309975
 
@@ -56,7 +56,7 @@ class Settings(BaseSettings):
     SERVICE_NAME: str='TELEGRAM'
     PROJECT_NAME:str='Bybit Telegram Trading'
     USE_BROKER: bool=True
-    DROP_TABLES: bool=False
+    DROP_TABLES: bool=True
 
 
 

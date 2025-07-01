@@ -48,7 +48,7 @@ class PaymentAmountMiddleware(BaseMiddleware):
             if permission['status'] and user:
                 df_pnl=await get_user_pnl(user,use_last_sub_day=True)
 
-                amount_to_pay=round(df_pnl['closedPnl'].sum(),2) if len(df_pnl) else 0
+                amount_to_pay=round(df_pnl['closedPnl'].sum()/2,2) if len(df_pnl) else 0
             else:
                 amount_to_pay=0
         if amount_to_pay <=0:

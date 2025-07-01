@@ -7,7 +7,8 @@ class TradeSettings:
     size: float = 1
     balance: float = 80
     take_profit: float = 3
-    hedge_percentage: float = 3
+    hedge_percentage_long: float = 3
+    hedge_percentage_short: float = 3
     hedge_stop_loss_percentage: float = 0.5
     leverage: float = 10
 

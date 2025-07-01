@@ -16,6 +16,7 @@ logger = logging.getLogger('payment')
 
 
 async def handle_success_payment(bot:Bot, data:PaymentSucces):
+    #TODO: Когда подписка успешна, берем из redis торговлю , и если она Run.HEDGE_SUB ставим ее на Run.ON
     try:
 
         payment_order_data= data.extract_data()

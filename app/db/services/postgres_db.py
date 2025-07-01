@@ -85,15 +85,19 @@ async def update_user_fields(db: AsyncSession, user_id: int, fields_dict:Optiona
     await db.commit()
 
 
-async def extend_subscription_due_time(db: AsyncSession, user_id: int, time:int) -> User:
+async def extend_subscription_due_time(db: AsyncSession, user_id: int, time:int,days=1) -> User:
     user = await get_user(db, user_id)
     if user:
         time=datetime.fromtimestamp(time, tz=timezone.utc)
         user.last_sub_time=time
-        user.sub_until = (time + timedelta(days=3))
+        now=datetime.now(timezone.utc)
+        target_time = now.replace(hour=15, minute=0, second=0, microsecond=0)
+        if now.time() > target_time.time():
+            target_time = target_time + timedelta(days=1)
+        user.sub_until = target_time
         await db.commit()
         await db.refresh(user)
-        return User
+        return user
     else:
         logging.warning(f"Haven't user (id={user_id}")
 
@@ -102,9 +106,11 @@ async def extend_subscription(db: AsyncSession, user_id: int, days: int) -> User
     user = await get_user(db, user_id)
     if user:
         now=datetime.now(timezone.utc)
-        sub_until=max(user.sub_until,now)
-        user.last_update=now
-        user.sub_until = sub_until + timedelta(days=days)
+        user.last_sub_time=now
+        target_time = now.replace(hour=15, minute=0, second=0, microsecond=0)
+        if now.time() > target_time.time():
+            target_time = target_time + timedelta(days=1)
+        user.sub_until = target_time
         await db.commit()
         await db.refresh(user)
         return user

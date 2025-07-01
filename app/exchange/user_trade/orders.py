@@ -89,9 +89,9 @@ class HedgePositionManager:
 
 
         if position_idx==PositionIdx.LONG:
-            tracking_price = entry_price * (1 - self.settings.hedge_percentage / 100)
+            tracking_price = entry_price * (1 - self.settings.hedge_percentage_long / 100)
         else:
-            tracking_price=entry_price * (1 + self.settings.hedge_percentage / 100)
+            tracking_price=entry_price * (1 + self.settings.hedge_percentage_short / 100)
 
         position=MainPosition(
             symbol=coin,

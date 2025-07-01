@@ -33,6 +33,14 @@ async def get_user_positions(user:User) -> List[Dict]:
             await client.close()
     return positions
 
+async def get_unrealised_pnl_user(user:User) -> float:
+    pstns=await get_user_positions(user)
+    sum_pnl=0
+    if pstns:
+        df=pd.DataFrame(pstns)
+        sum_pnl=round((df['unrealisedPnl'].astype(float)).sum(),2)
+    return sum_pnl
+
 
 async def check_permissions(user:User) -> Dict:
     flag=user.api and user.secret
@@ -40,11 +48,17 @@ async def check_permissions(user:User) -> Dict:
     has_permission=False
     parentUid=0
     result={}
+    ret_code=0
+    ret_msg=None
     if flag:
-        client:BybitRequester =BybitRequester(user.api, user.secret, testnet)
-        result=await get_api_permissions(client)
-        await client.close()
-        if result:
+        try:
+            client:BybitRequester =BybitRequester(user.api, user.secret, testnet)
+            result=await get_api_permissions(client)
+        finally:
+            await client.close()
+        ret_code=result.get('retCode',0)
+        ret_msg=result.get('retMsg',None)
+        if result and ret_code==0:
             permissions=pd.Series(result['permissions'])
             readonly=result.get('readOnly',-1)==0
             has_permission=(permissions['ContractTrade']==['Order','Position'] and
@@ -56,7 +70,9 @@ async def check_permissions(user:User) -> Dict:
           'permissions': has_permission,
           'has_api_secret': flag,
           'parentUid': parentUid,
-          'result':result}
+          'result':result,
+          'ret_code':ret_code,
+          'ret_msg':ret_msg}
 
 
 

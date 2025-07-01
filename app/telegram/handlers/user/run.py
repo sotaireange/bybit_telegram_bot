@@ -27,13 +27,10 @@ router=Router(name='run')
 
 logger=logging.getLogger('aiogram')
 
-#TODO: Сделать проверку на api/secret. Следом сделать проверку на подписку. Поставить 3 уровня Active, Hedge, OFF/
-# Так же нужно перенести профит в positions.
-
-#TODO: Запускаем полностью бота RUN , отключчаем покупку новых позиций Hedge, отключаем полностью бота Stop, Отключаем и выходим Exit
 
 
-#TODO: Можно сделать так: перед запуском проверяем - есть ли активные задачи, если есть - запускаем новую, если нет - так далее, после unrun - полностью отрубаем задачу(ждем 10-20 секунд)
+
+
 
 @router.callback_query(lambda call: call.data=="run")
 async def run(call: CallbackQuery, state: FSMContext,redis_client:RedisClient,user:User,db:AsyncSession,broker:RedisBroker):
@@ -42,16 +39,15 @@ async def run(call: CallbackQuery, state: FSMContext,redis_client:RedisClient,us
     if not status.get('status',0):
         text=msg.get_permission_text(status)
         await call.message.edit_text(text=text,reply_markup=keyboards.main_menu(Run.OFF))
-    await asyncio.sleep(5)
     await redis_client.set_is_run(user_id,Run.OFF)
     text= msg.get_menu_text(user, Run.ACTIVE)
     await call.message.edit_text(text=text,reply_markup=keyboards.main_menu(Run.ACTIVE))
 
-    await asyncio.sleep(3)
-    task=await Task.create_task(db,user_id=user_id)
+    await Task.get_user_task_with_wait(db,user_id)
+
+    task=await Task.create_task(db,user_id=user_id,type=TaskType.MAIN)
     task_msg=TaskMessage(task_id=task.id,user_id=user_id,task_type=TaskType.MAIN)
     await redis_client.set_is_run(user_id,Run.ACTIVE)
-    logger.info(f'ALARM! {user_id} START BOT ')
     await publish_task(broker,task_msg)
 
 
@@ -62,16 +58,24 @@ async def unrun(call: CallbackQuery, state: FSMContext,redis_client:RedisClient,
     if not status.get('status',0):
         text=msg.get_permission_text(status)
         await call.message.edit_text(text=text,reply_markup=keyboards.main_menu(Run.OFF))
-    await asyncio.sleep(5)
-    await redis_client.set_is_run(user_id,Run.OFF)
     text= msg.get_menu_text(user, Run.HEDGE)
     await call.message.edit_text(text=text,reply_markup=keyboards.main_menu(Run.HEDGE))
-    await asyncio.sleep(3)
-    task=await Task.create_task(db,user_id=user_id)
-    task_msg=TaskMessage(task_id=task.id,user_id=user_id,task_type=TaskType.HEDGE)
+
+    task=await Task.get_user_task(db,user_id)
+
     await redis_client.set_is_run(user_id,Run.HEDGE)
 
-    await publish_task(broker,task_msg)
+    if not task:
+        task=await Task.create_task(db,user_id=user_id,type=TaskType.HEDGE)
+        task_msg=TaskMessage(task_id=task.id,user_id=user_id,task_type=TaskType.HEDGE)
+        await publish_task(broker,task_msg)
+    else:
+        task=task[0]
+        if isinstance(task,Task):
+            await Task.update(db,task_id=task.id,type=TaskType.HEDGE)
+            logger.debug('task.type success changed')
+        else:
+            logger.error("Task Not found, Maybe fix Task.get_user_task()")
 
 @router.callback_query(lambda call: call.data=="unrun")
 async def unrun(call: CallbackQuery, state: FSMContext,redis_client:RedisClient,user:User,db:AsyncSession,broker:RedisBroker):
@@ -80,9 +84,9 @@ async def unrun(call: CallbackQuery, state: FSMContext,redis_client:RedisClient,
     text=msg('user_when_stop')
     text_menu= msg.get_menu_text(user, Run.OFF)
     text=text+text_menu
-    logger.info(f'ALARM! {user_id} STOP BOT!!!! ')
-
     await call.message.edit_text(text=text,reply_markup=keyboards.main_menu(Run.OFF))
+
+    await Task.get_user_task_with_wait(db,user_id)
 
 
 

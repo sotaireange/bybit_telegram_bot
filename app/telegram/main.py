@@ -11,7 +11,7 @@ from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_applicati
 from aiogram.exceptions import TelegramNetworkError
 from faststream import FastStream
 
-from app.db.database import r, create_tables, drop_tables, close_databases
+from app.db.database import r, create_tables, drop_tables, close_databases,AsyncSessionLocal
 from app.db.services.redis_db import RedisClient
 
 from app.common.config import settings
@@ -21,8 +21,11 @@ from app.telegram.handlers import setup_routers, setup_middlewares
 from app.telegram.utils.infinity_parser import infinity_get_data_coins
 from app.telegram.utils.handle_task import stop_task
 from app.telegram.utils.start_fastream_broker import sub_faststream_tasks
-from app.telegram.payments.freekassa import handle_payment_fk
+from app.telegram.utils.shedule_tasks import create_and_start_scheduler
+from app.telegram.utils.start_proccesing_trading import start_proccesing_trading
+
 from app.telegram.payments.paykassa import handle_payment_pk
+
 
 import json
 logger = logging.getLogger('system')
@@ -60,7 +63,6 @@ async def run_webhook_mode(dp: Dispatcher, bot: Bot, faststream_app: FastStream)
     setup_application(app, dp, bot=bot)
 
     faststream_task = asyncio.create_task(faststream_app.start()) if faststream_app else None
-
     app.router.add_post('/payment-pk', handle_payment_pk)
     #app.router.add_post('/payment-fk', handle_payment_fk)
 
@@ -117,7 +119,6 @@ async def wait_for_dns_with_limit(host='api.telegram.org', interval=30, max_atte
 
 
 async def main():
-    #TODO: Нужно добавить: 1. Запуск всех запущенных процессов.
     setup_logging()
     logger.info(f"Start {settings.PROJECT_NAME} (service: {settings.SERVICE_NAME})")
     if settings.DROP_TABLES:
@@ -130,9 +131,8 @@ async def main():
 
     broker, faststream_app = await sub_faststream_tasks(bot)
 
-
+    trading_task=asyncio.create_task(start_proccesing_trading(broker,AsyncSessionLocal))
     background_task = asyncio.create_task(infinity_get_data_coins(r))
-
     if broker:
         dp.broker = broker
 
@@ -142,6 +142,9 @@ async def main():
 
     redis_client=RedisClient(r)
     await redis_client.initialize()
+
+    scheduler= create_and_start_scheduler(broker,redis_client,AsyncSessionLocal)
+
     dp['redis_client']=redis_client
     while True:
         try:
@@ -174,7 +177,9 @@ async def main():
 
         await bot.session.close()
         await close_databases()
+        await scheduler.shutdown()
         await stop_task(background_task, "background")
+        await stop_task(trading_task, "trading")
 
 if __name__ == "__main__":
     import sys

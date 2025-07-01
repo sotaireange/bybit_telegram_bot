@@ -19,7 +19,8 @@ class MessageBuilder:
         "api": "API ключ",
         "secret": "API Secret",
         "user_sub": "Количество дней подписки",
-        'hedge_percentage': "Процент открытия хэджирования",
+        'hedge_percentage_long': "Процент открытия хэджирования",
+        'hedge_percentage_short': "Процент открытия хэджирования(SHORT)",
         'hedge_stop_loss_percentage' : "Стоп лос Хеджирования"
     }
     url_info= {
@@ -167,7 +168,9 @@ class MessageBuilder:
         if not has_permission['has_api_secret']: return 'Не указан API/Secret\n'
         extra = (f'{'Чтение и запись.\n' if not has_permission['readonly'] else ''}'
                  f'{'Единый торговый аккаунт: Ордера, Позиции, Торговля дериативами USDC.' if not has_permission['permissions'] else ''}')
-        return f"Все доступы имеются\n Ваш BybitUID {has_permission['result'].get('parentUid')}" if has_permission['status'] else f"Подключите доступы: \n{extra}"
+        text=f"Все доступы имеются\n Ваш BybitUID {has_permission['result'].get('parentUid')}" if has_permission['status'] else f"Подключите доступы: \n{extra}"
+        if has_permission['ret_code']!=0: text= has_permission['ret_msg']
+        return text
 
     @classmethod
     def get_pnl_text(cls,pnls:pd.DataFrame) -> str:
@@ -255,6 +258,14 @@ class MessageBuilder:
     def get_exit_orders_text(self,pnl:float):
         text=(f'Если выйти из всех позиций, ожидаемый убыток составит {pnl:.2f}$\n'
               f'Вы уверены?')
+        return text
+
+    def get_payment_text(self,pnl:float) -> str:
+        if pnl>0:
+            text=(f'За сутки заработано {pnl:.2f}$\n'
+                  f'К оплате {pnl/2:.2f}$')
+        else:
+            text=f'Убыток составил {pnl:.2f}$\n'
         return text
 
 msg=MessageBuilder()

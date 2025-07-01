@@ -28,13 +28,17 @@ async def send_notification(bot:Bot, telegram_msg: TelegramMessage):
     async with AsyncSessionLocal() as session:
         notification=await pdb.get_notification(session,user_id)
 
-
-    field_name = get_notification_field(telegram_msg.data.position_type, telegram_msg.type)
-    if not getattr(notification, field_name, True):
-        return
+    if NotificationType in [NotificationType.POSITION_OPEN, NotificationType.POSITION_CLOSE]:
+        field_name = get_notification_field(telegram_msg.data.position_type, telegram_msg.type)
+        if not getattr(notification, field_name):
+            return
     if telegram_msg.type == NotificationType.ERROR:
         text=msg('error_when_trading')
+    elif telegram_msg.type == NotificationType.PAYMENT:
+        text=msg.get_payment_text(telegram_msg.data)
     else:
         text=msg.send_order_notification(telegram_msg)
     await bot.send_message(chat_id=user_id,text=text,parse_mode='HTML')
+
+
 

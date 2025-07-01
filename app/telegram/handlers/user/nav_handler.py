@@ -1,4 +1,5 @@
 import logging
+import asyncio
 
 from aiogram.enums import ParseMode
 from aiogram import Bot
@@ -17,13 +18,10 @@ from app.telegram import keyboards
 from app.telegram.fsm import Main
 from . import navigate_router as router
 from app.telegram.utils.messages import msg
-from app.telegram.utils.stock_helper import check_permissions, get_user_positions,close_all_order_user
+from app.telegram.utils.stock_helper import check_permissions, get_user_positions,close_all_order_user,get_unrealised_pnl_user
 from ...utils.pnl_helper import get_user_pnl
 
 logger = logging.getLogger('aiogram')
-#TODO: сделать дубликат /menu /position /exit
-#прописывает /exit там всплывает уведомление - столько-то примерно будет минус, уверены? и кнопка Да Нет
-
 
 
 
@@ -103,17 +101,26 @@ async def notification_callback(call: CallbackQuery,db:AsyncSession):
     await call.message.edit_text(text=text,reply_markup=keyboards.notification_menu(notification))
 
 
-@router.message(Command('exit'))
+@router.message(Command('total_exit'))
 async def exit_order_handler(message: Message, redis_client: RedisClient, user: User):
-    user_id=message.from_user.id
-    user=await get_user_positions(user)
-    text = msg.get_exit_orders_text(user, pnl)
-    await message.answer(text, reply_markup=keyboards.main_menu(flag=run))
+    pnl= await get_unrealised_pnl_user(user)
+    text = msg.get_exit_orders_text(pnl)
+    await message.answer(text, reply_markup=keyboards.proof_to_exit_orders())
     await message.delete()
 
-async def confirm_exit_order_handler(call:CallbackQuery, redis_client: RedisClient,user:User):
+@router.callback_query(lambda call: call.data=='yes_exit')
+async def confirm_exit_order_handler(call: CallbackQuery,db:AsyncSession,redis_client: RedisClient, user: User):
     user_id=call.from_user.id
-    run = await redis_client.set_is_run(user_id,Run.OFF)
+    await redis_client.set_is_run(user_id,Run.OFF)
+    await asyncio.sleep(5)
+    await close_all_order_user(user)
+    text= msg.get_menu_text(user, Run.OFF)
+    try:
+        await call.message.edit_text(text,reply_markup=keyboards.main_menu(flag=Run.OFF))
+    except:
+        pass
+
+
 
 @router.my_chat_member()
 async def check_blocked_handler(message: ChatMemberUpdated, db:AsyncSession, redis_client:RedisClient):

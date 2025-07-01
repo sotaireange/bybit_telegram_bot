@@ -61,7 +61,8 @@ class AdminMsgBuilder(MessageBuilder):
               f'Процент баланса от общего: {data_trade['size']}%\n'
               f'Максимальный баланс : {data_trade['balance']}$\n'
               f'Процент прибыли(Take Profit : {data_trade['take_profit']}%\n'
-              f'Процента Хеджа : {data_trade['hedge_percentage']}\n'
+              f'Процента Хеджа Long : {data_trade['hedge_percentage_long']}\n'
+              f'Процента Хеджа Short : {data_trade['hedge_percentage_short']}\n'
               f'Стоп Лосс Хеджа : {data_trade['hedge_stop_loss_percentage']}\n'
               f'Кредитное плечо : {data_trade['leverage']}%\n'
               )

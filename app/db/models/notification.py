@@ -23,6 +23,7 @@ class Notification(Base):
     def to_dict(self):
         return {
             "id": self.id,
+            "user_id": self.user_id,
             "main_open": self.main_open,
             "main_close": self.main_close,
             "hedge_open": self.hedge_open,

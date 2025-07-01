@@ -23,7 +23,6 @@ logger = logging.getLogger('aiogram')
 # если подписка закончилась - не давать включать бота,
 # так же раз в час будет проверять юзнеров, у которых закончилась попдиска,
 # если закончилась требовать оплатить попдиску
-# TODO: Нужно в 18:00 проверять подписку и отправлять уведеомление если все верно, так
 
 @router.callback_query(lambda call: call.data=='subs_menu',flags={'amount_calculate': True})
 async def subs_menu_callback(call: CallbackQuery, user:User,db:AsyncSession,payment:Payment):

@@ -21,7 +21,9 @@ logger = logging.getLogger('aiogram')
 @router.callback_query(lambda call: call.data in ['volume_long','volume_short',
                                                   'long_percentage','short_percentage',
                                                   'leverage','size','balance','take_profit',
-                                                  'hedge_percentage','hedge_stop_loss_percentage'])
+                                                  'hedge_percentage_long', 'hedge_percentage_short',
+                                                  'hedge_stop_loss_percentage'])
+
 async def set_state(call: CallbackQuery, state: FSMContext):
     data:str=call.data
     await state.set_state(f'AdminSet:{data.upper()}')

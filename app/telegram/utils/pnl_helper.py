@@ -4,7 +4,7 @@ from itertools import chain
 
 from datetime import datetime
 
-from typing import Dict, List
+from typing import Dict, List,Union,Sequence
 
 from app.db.models import User
 from app.exchange.bybit_async import BybitRequester, get_pnl_from_chunks
@@ -23,10 +23,10 @@ async def get_pnl_result_from_chunk(bybit_requester:BybitRequester, chunks:List[
     return result
 
 
-async def get_user_pnl(user: User, use_last_sub_day:bool=False) -> pd.DataFrame: #TODO Все Usages нужно будет перепроверить и оставить использование только в Admin_commands по user и только в Positions , чтобы не перегружать
+async def get_user_pnl(user: User, use_last_sub_day:bool=False,only_sum=False) -> Union[pd.DataFrame,float]:
     df=pd.DataFrame()
     client=None
-    if not (user.api and user.secret): return df
+    if not (user.api and user.secret): return df if not only_sum else 0
     try:
         client=BybitRequester(user.api, user.secret, testnet)
         splitter = TimeSplitter(user)
@@ -45,6 +45,12 @@ async def get_user_pnl(user: User, use_last_sub_day:bool=False) -> pd.DataFrame:
     finally:
         if client:
             await client.close()
-        return df
+        return df if not only_sum else df['closedPnl'].sum() if len(df)>0 else 0
 
 
+async def get_all_user_pnl(users: Sequence[User]) -> Dict[User,float]:
+    tasks=[(get_user_pnl(user,True,only_sum=True)) for user in users]
+    results=await asyncio.gather(*tasks)
+    # pnl_users={user.id:results[i] for i,user in enumerate(users)}
+    pnl_users=dict(zip(users,results))
+    return pnl_users

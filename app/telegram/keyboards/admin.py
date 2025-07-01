@@ -47,8 +47,8 @@ def admin_settings_menu():
     markup.row(InlineKeyboardButton(text="Процент баланса от общего",callback_data="size")) #1-5
     markup.row(InlineKeyboardButton(text="Максимальный баланс",callback_data="balance")) #30-70
     markup.row(InlineKeyboardButton(text="Процент прибыли(Take Profit)",callback_data="take_profit")) #5-30
-    markup.row(InlineKeyboardButton(text="Процент Хеджа Long",callback_data="hedge_percentage")) #5-30
-    #markup.row(InlineKeyboardButton(text="Процент Хеджа Short",callback_data="hedge_percentage")) #5-30
+    markup.row(InlineKeyboardButton(text="Процент Хеджа Long",callback_data="hedge_percentage_long")) #5-30
+    markup.row(InlineKeyboardButton(text="Процент Хеджа Short",callback_data="hedge_percentage_short")) #5-30
     markup.row(InlineKeyboardButton(text="Стоп Лосс Хеджа",callback_data="hedge_stop_loss_percentage")) #5-30
     markup.row(InlineKeyboardButton(text="Кредитное плечо",callback_data="leverage")) # 1-20
     markup.row(InlineKeyboardButton(text="Назад",callback_data="admin_menu"))

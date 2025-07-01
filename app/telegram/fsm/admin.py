@@ -10,7 +10,8 @@ class AdminSet(StatesGroup):
     SIZE=State()
     BALANCE=State()
     TAKE_PROFIT=State()
-    HEDGE_PERCENTAGE=State()
+    HEDGE_PERCENTAGE_LONG=State()
+    HEDGE_PERCENTAGE_SHORT=State()
     HEDGE_STOP_LOSS_PERCENTAGE=State()
 
     NOT_SET=State()

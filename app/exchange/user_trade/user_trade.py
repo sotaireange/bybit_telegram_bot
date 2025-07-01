@@ -30,10 +30,6 @@ if sys.platform.startswith('win'):
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 
-#TODO: Исправить чтобы нен было бессконечный pass:
-# [15:04:15 04-06-2025] DEBUG    trading|user_trade | fetch_coin(311) | FLOCKUSDT is trading. Pass.                                                        user_trade.py:311
-#  DEBUG    trading|user_trade | fetch_coin(311) | FLOCKUSDT is trading. Pass.
-
 class TradeBot:
     def __init__(self,user_id:int,user_data: Dict,redis_client:RedisClient):
         self.is_running: Run= Run.ACTIVE
@@ -122,14 +118,6 @@ class TradeBot:
         logger.warning('Position  does not list')
         return True
 
-    async def have_position(self,coin: Hashable) -> bool:
-        positions=await get_positions(self.client,coin)
-        if proof_result(positions,list):
-            size=[float(position.get('size',0)) for position in positions]
-            return any(size)
-        logger.warning('Position  does not list')
-        return False
-
 
     async def coin_in_trade(self, coin: Hashable) -> bool:
         position=(await get_positions(self.client,coin))
@@ -137,7 +125,7 @@ class TradeBot:
             size=[float(pos.get('size',0)) for pos in position]
             return any(size)
         logger.warning('Position in coin_in_trade does not list')
-        return True
+        return False
 
 
     async def get_order(self, coin: Hashable, orderId: Union[str, List] = None,
@@ -174,7 +162,7 @@ class TradeBot:
                     if should_hedge:
                         have_both_position=await self.have_both_side_position(coin)
                         if not have_both_position:
-                            have_one_position= await self.have_position(coin)
+                            have_one_position= await self.coin_in_trade(coin)
                             if have_one_position:
                                 await self.fetch_hedge_coin(coin)
                 except Exception as e:
@@ -231,7 +219,7 @@ class TradeBot:
                 if need_delete:
                     for pos in need_delete:
                         #TODO: Проблема со спамом монетки в строчке 238. Сппамит бесконечно.
-                        # Разорбат ьс нуля этот момент и проверить БД
+                        # Разорбат ьс нуля этот момент и проверить БД. Возможно если это Main и он завис - закрыть все позиции по этой монетке
 
 
                         is_main=pos.get('is_main',True)
@@ -431,14 +419,12 @@ class TradeBot:
                     await asyncio.wait_for(task, timeout=5)
 
                 except asyncio.TimeoutError as er:
-                    logger.error((f"{task.get_name()} took too long to cancel. {er}"))
+                    logger.debug((f"{task.get_name()} took too long to cancel. {er}"))
                 except asyncio.CancelledError as er:
-                    logger.error((f"{task.get_name()} Cancelled. {er}"))
+                    logger.debug((f"{task.get_name()} Cancelled. {er}"))
 
             try:
                 await self.client.close()
             except Exception as e:
                 logger.error(f'Cannot close session client {e}')
 
-
-#%%
