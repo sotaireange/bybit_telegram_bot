@@ -18,9 +18,8 @@ from app.telegram import keyboards
 from app.telegram.fsm import Main
 from . import navigate_router as router
 from app.telegram.utils.messages import msg
-from app.telegram.utils.stock_helper import check_permissions, get_user_positions,close_all_order_user,get_unrealised_pnl_user
+from app.telegram.utils.stock_helper import check_permissions, get_user_positions,close_all_order_user,get_unrealised_pnl_user,check_bybit_uids
 from ...utils.pnl_helper import get_user_pnl
-
 logger = logging.getLogger('aiogram')
 
 
@@ -67,9 +66,7 @@ async def stock_callback(call: CallbackQuery, state: FSMContext,user:User):
 @router.callback_query(lambda call: call.data=='check_api')
 async def stock_check_callback(call: CallbackQuery, state: FSMContext,user:User,db:AsyncSession):
     permissions=await check_permissions(user)
-    bybit_uid=int(permissions.get('parentUid'))
-    if bybit_uid:
-        await pdb.update_bybit_uid(db,call.from_user.id,bybit_uid)
+    await check_bybit_uids(db,user)
     text= msg.get_permission_text(permissions)
     await call.message.edit_text(text,reply_markup=keyboards.stock_menu())
 

@@ -3,7 +3,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 
 
-def subs_menu(amount:float):
+def subs_menu():
     markup= InlineKeyboardBuilder()
     # markup.row(InlineKeyboardButton(text="Сколько нужно заплатить?",callback_data="subs_menu"))
     if float:

@@ -218,10 +218,6 @@ class TradeBot:
                 need_delete=await self.get_delete_positions()
                 if need_delete:
                     for pos in need_delete:
-                        #TODO: Проблема со спамом монетки в строчке 238. Сппамит бесконечно.
-                        # Разорбат ьс нуля этот момент и проверить БД. Возможно если это Main и он завис - закрыть все позиции по этой монетке
-
-
                         is_main=pos.get('is_main',True)
                         symbol=pos.get('symbol')
                         if symbol:

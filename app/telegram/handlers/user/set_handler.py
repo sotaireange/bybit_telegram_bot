@@ -18,7 +18,6 @@ from app.db.models import Notification
 from app.db.services import postgres_db as pdb
 
 
-
 from . import setting_router as router
 
 

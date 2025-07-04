@@ -59,7 +59,13 @@ class MessageBuilder:
                               "Свяжитесь с администратором.",
         "payment_not_need" : "Оплата не требуется",
         "error_when_trading": "Возникла ошибка по время торговли.\n"
-                              "Уведомите администратора."
+                              "Уведомите администратора.",
+        "sub_is_over" : "Нужно оплатить подписку",
+        "bybit_uid_is_bad": "Вы используете второй аккаунт.\n"
+                            "Торговля заблокирована",
+        "get_bybit_uid_error": "Вы используете дублирующий аккаунт.\n"
+                               "Используйте тот Sub-account, который использовали изначально.",
+        "lost_api_secret": "Вы не указали API или Secret Key."
     }
 
     months = {
@@ -169,7 +175,7 @@ class MessageBuilder:
         extra = (f'{'Чтение и запись.\n' if not has_permission['readonly'] else ''}'
                  f'{'Единый торговый аккаунт: Ордера, Позиции, Торговля дериативами USDC.' if not has_permission['permissions'] else ''}')
         text=f"Все доступы имеются\n Ваш BybitUID {has_permission['result'].get('parentUid')}" if has_permission['status'] else f"Подключите доступы: \n{extra}"
-        if has_permission['ret_code']!=0: text= has_permission['ret_msg']
+        if has_permission.get('ret_code',0)!=0: text= has_permission['ret_msg']
         return text
 
     @classmethod
@@ -261,11 +267,12 @@ class MessageBuilder:
         return text
 
     def get_payment_text(self,pnl:float) -> str:
-        if pnl>0:
-            text=(f'За сутки заработано {pnl:.2f}$\n'
+        if pnl>10:
+            text=(f'Заработано {pnl:.2f}$\n'
                   f'К оплате {pnl/2:.2f}$')
         else:
-            text=f'Убыток составил {pnl:.2f}$\n'
+            text=(f'Pnl составил {pnl:.2f}$\n'
+                  f'Оплата не требуется')
         return text
 
 msg=MessageBuilder()

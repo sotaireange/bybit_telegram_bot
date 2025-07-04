@@ -8,6 +8,7 @@ from aiogram import Bot
 
 
 from app.db.database import r
+from app.db.services.redis_db import RedisClient
 from app.db.models import PaymentSucces,PaymentType
 from app.common.config import settings
 
@@ -111,17 +112,17 @@ async def handle_payment_pk(request: web.Request) -> web.Response:
         await r.set('last_payment_paykassa_webhook_data', json.dumps(data_dict))
 
         bot: Bot = request.app['bot']
+        redis_client: RedisClient=request.app['redis_client']
+        order_id=await handle_success_pk(bot, data_dict,redis_client)
 
-        await handle_success_pk(bot, data_dict)
-
-        return web.Response(text="YES", status=200) #TODO: нужен какой-то правильный ответ, а то отправляет повтор, нужно будет проверить еще раз
+        return web.Response(text=f"{order_id}|success", status=200)
 
     except Exception as e:
         logger.error(f"Error processing payment notification: {e}")
         return web.Response(text="ERROR", status=500)
 
 
-async def handle_success_pk(bot: Bot, payment_data: dict):
+async def handle_success_pk(bot: Bot, payment_data: dict,redis_client:RedisClient) -> str:
     try:
         private_hash = payment_data.get('private_hash')
 
@@ -136,10 +137,10 @@ async def handle_success_pk(bot: Bot, payment_data: dict):
             user_id = extract_user_id_from_order(order_id)
             if user_id:
                 payment_success=PaymentSucces(order_id=order_id, amount=amount,type=PaymentType.PK)
-                await handle_success_payment(bot, payment_success)
-
+                await handle_success_payment(bot, payment_success,redis_client)
 
             logger.debug(f"Payment {order_id} processed successfully")
+            return order_id
         else:
             logger.warning(f"Payment {payment_data} status check failed: {payment_status}")
 

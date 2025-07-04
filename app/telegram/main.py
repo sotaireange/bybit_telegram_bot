@@ -59,6 +59,7 @@ async def create_bot_and_dispatcher() -> (Bot,Dispatcher):
 async def run_webhook_mode(dp: Dispatcher, bot: Bot, faststream_app: FastStream):
     app = web.Application()
     app['bot'] = bot
+    app['redis_client']=dp.get('redis_client')
     SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=settings.WEBHOOK_PATH)
     setup_application(app, dp, bot=bot)
 

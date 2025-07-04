@@ -34,7 +34,6 @@ class PaymentAmountMiddleware(BaseMiddleware):
             event: Update,
             data: Dict[str, Any]
     ) -> Any:
-        logger.info('In PaymenyMiddleware')
         check_payment = get_flag(data, "amount_calculate")
 
         async with self.sessionmaker() as session:
@@ -51,10 +50,10 @@ class PaymentAmountMiddleware(BaseMiddleware):
                 amount_to_pay=round(df_pnl['closedPnl'].sum()/2,2) if len(df_pnl) else 0
             else:
                 amount_to_pay=0
-        if amount_to_pay <=0:
+        if amount_to_pay <10:
             async with self.sessionmaker() as session:
                 time=int(datetime.now(timezone.utc).timestamp())
-                user=await pdb.extend_subscription_due_time(session,user_id=user.id,time=time)
+                user=await pdb.extend_subscription(session,user_id=user.id,days=1)
                 text=msg('payment_not_need')
 
             return await event.message.edit_text(text,reply_markup=cancel_menu())

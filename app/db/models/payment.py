@@ -1,4 +1,4 @@
-from sqlalchemy import Column, BigInteger, Float, DateTime, func, select, Integer, ForeignKey, Enum as SQLAEnum, update
+from sqlalchemy import Column, BigInteger, Float,String, DateTime, func, select, Integer, ForeignKey, Enum as SQLAEnum, update
 from typing import Dict
 
 from sqlalchemy.orm import relationship
@@ -62,6 +62,7 @@ class Payment(Base):
     created_at = Column(DateTime, default=func.now())
     completed_at = Column(DateTime, nullable=True)
     type= Column(SQLAEnum(PaymentType), default=PaymentType.UNKNOWN)
+    # payment_id= Column(String,nullable=True)
     user = relationship("User", back_populates="payments")
 
     def to_dict(self):

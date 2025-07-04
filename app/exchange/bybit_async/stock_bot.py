@@ -315,7 +315,7 @@ async def get_pnl_from_chunks(bybit_requester: BybitRequester, chunk:Dict[str,da
             params=data
         ))
     except BybitApiError as e:
-        logger.error(f'Error switch position\n {e}')
+        logger.error(f'Error get pnl\n {e}')
     except Exception as e:
         logger.error(e)
     finally:

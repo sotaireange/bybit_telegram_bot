@@ -5,6 +5,10 @@ import random
 
 from app.db.models import User
 from app.exchange.bybit_async import BybitRequester, get_all_position,get_api_permissions,close_order
+from app.db.services import postgres_db as pdb
+from sqlalchemy.ext.asyncio import AsyncSession
+
+
 
 testnet=False
 
@@ -76,4 +80,11 @@ async def check_permissions(user:User) -> Dict:
 
 
 
-
+async def check_bybit_uids(db:AsyncSession,user:User):
+    permissions=await check_permissions(user)
+    bybit_uid=int(permissions.get('parentUid',0))
+    bybit_sub_account_uid=int(permissions.get('userID',0))
+    if bybit_uid:
+        await pdb.update_bybit_uid(db,user.id,bybit_uid)
+    if bybit_sub_account_uid:
+        await pdb.update_bybit_subaccount_uid(db,user.id,bybit_sub_account_uid)

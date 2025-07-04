@@ -19,15 +19,10 @@ logger = logging.getLogger('aiogram')
 
 
 
-#TODO: Так же нужно будет проверять в мидлвари subs,
-# если подписка закончилась - не давать включать бота,
-# так же раз в час будет проверять юзнеров, у которых закончилась попдиска,
-# если закончилась требовать оплатить попдиску
-
 @router.callback_query(lambda call: call.data=='subs_menu',flags={'amount_calculate': True})
 async def subs_menu_callback(call: CallbackQuery, user:User,db:AsyncSession,payment:Payment):
     text=msg.get_subs_text(user,payment)
-    await call.message.edit_text(text,reply_markup=keyboards.subs_menu(payment.amount))
+    await call.message.edit_text(text,reply_markup=keyboards.subs_menu())
 
 
 

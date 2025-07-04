@@ -18,18 +18,17 @@ logger = logging.getLogger('payment')
 async def create_and_send_notification(broker:RedisBroker,redis_client:RedisClient,db:AsyncSession,pnl_users:Dict[User,float]):
     for user,pnl in pnl_users.items():
         tg_msg=TelegramMessage(user_id=user.id,type=NotificationType.PAYMENT,data=pnl)
-        if pnl>0:
-            logger.info(f'Send notification to {user.id} {user.username}')
+        await publish_telegram_message(broker,tg_msg)
+
+        if pnl>=10:
+            logger.info(f'Send notification to {user.id} {user.username} pnl - {pnl}')
             is_run=await redis_client.get_is_run(user.id)
             if is_run==Run.ACTIVE:
                 await redis_client.set_is_run(user.id,Run.HEDGE_SUB)
             amount=round(pnl/2,2)
             await Payment.update_payment(db,user.id,amount=amount)
             await publish_telegram_message(broker,tg_msg)
-        elif pnl<0:
-            logger.info(f'pnl<0 send notification {user.id} {user.username}')
-            await publish_telegram_message(broker,tg_msg)
-        if pnl<=0:
+        else:
             await pdb.extend_subscription(db,user.id,days=1)
 
 async def daily_task(broker:RedisBroker,redis_client:RedisClient,session:async_sessionmaker):

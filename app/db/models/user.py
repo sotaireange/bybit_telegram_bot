@@ -24,6 +24,7 @@ class User(Base):
     is_banned=Column(Boolean, default=False)
     pnl=Column(Float,default=0)
     bybit_uid=Column(BigInteger,default=None,unique=True)
+    bybit_sub_account_uid=Column(BigInteger,default=None)
 
 
     tasks = relationship("Task", back_populates="user")
@@ -48,6 +49,7 @@ class User(Base):
             "secret": self.secret,
             "pnl": self.pnl,
             'bybit_uid':self._bybit_uid,
+            'bybit_sub_account_uid': self.bybit_sub_account_uid,
 
         }
 

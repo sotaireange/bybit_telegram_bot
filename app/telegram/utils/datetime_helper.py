@@ -3,6 +3,11 @@ from typing import Dict, Optional, List
 from dateutil.relativedelta import relativedelta
 from app.db.models import User
 
+
+def sub_is_over(user:User) -> bool:
+    time_now = datetime.now(timezone.utc)
+    return time_now>user.sub_until
+
 class TimeSplitter:
     def __init__(self, user: User, now: Optional[datetime] = None):
         self.first_day = user.first_day

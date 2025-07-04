@@ -6,17 +6,18 @@ import logging
 from app.db.models import PaymentType,PaymentSucces,Payment,PaymentStatus
 from app.db.database import AsyncSessionLocal,r
 from app.db.services import postgres_db
-
+from app.db.services.redis_db import RedisClient
 
 from app.telegram.utils.messages import msg
+
+from app.telegram.payments.utils import change_run
 
 logger = logging.getLogger('payment')
 
 
 
 
-async def handle_success_payment(bot:Bot, data:PaymentSucces):
-    #TODO: Когда подписка успешна, берем из redis торговлю , и если она Run.HEDGE_SUB ставим ее на Run.ON
+async def handle_success_payment(bot:Bot, data:PaymentSucces,redis_client:RedisClient):
     try:
 
         payment_order_data= data.extract_data()
@@ -29,6 +30,7 @@ async def handle_success_payment(bot:Bot, data:PaymentSucces):
                                                 status=PaymentStatus.SUCCESS,type=data.type)
 
         if payment:
+            await change_run(redis_client,user_id=payment_order_data.user_id)
             text=msg.get_succes_payment_text(payment)
             await bot.send_message(payment_order_data.user_id,text=text)
     except Exception as e:

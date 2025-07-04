@@ -1,6 +1,7 @@
 import asyncio
 from aiogram.types import Message
 from aiogram import Bot
+from aiogram.exceptions import TelegramForbiddenError
 from datetime import datetime
 
 
@@ -27,7 +28,6 @@ async def send_notification(bot:Bot, telegram_msg: TelegramMessage):
     user_id=telegram_msg.user_id
     async with AsyncSessionLocal() as session:
         notification=await pdb.get_notification(session,user_id)
-
     if NotificationType in [NotificationType.POSITION_OPEN, NotificationType.POSITION_CLOSE]:
         field_name = get_notification_field(telegram_msg.data.position_type, telegram_msg.type)
         if not getattr(notification, field_name):
@@ -38,7 +38,10 @@ async def send_notification(bot:Bot, telegram_msg: TelegramMessage):
         text=msg.get_payment_text(telegram_msg.data)
     else:
         text=msg.send_order_notification(telegram_msg)
-    await bot.send_message(chat_id=user_id,text=text,parse_mode='HTML')
-
+    try:
+        await bot.send_message(chat_id=user_id,text=text,parse_mode='HTML')
+    except TelegramForbiddenError:
+        async with AsyncSessionLocal() as db:
+            await pdb.update_user_fields(db,user_id,{'is_banned': True})
 
 

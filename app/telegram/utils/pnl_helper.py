@@ -32,10 +32,15 @@ async def get_user_pnl(user: User, use_last_sub_day:bool=False,only_sum=False) -
         splitter = TimeSplitter(user)
 
         chunk_weeks = splitter.get_recent_weeks(months_back=3,use_last_sub_day=use_last_sub_day)
-        tasks=[get_pnl_result_from_chunk(client, chunk) for chunk in chunk_weeks]
-        results=await asyncio.gather(*tasks)
-
-        df=pd.DataFrame(list(chain.from_iterable(results)))
+        try:
+            tasks=[get_pnl_result_from_chunk(client, chunk) for chunk in chunk_weeks]
+            results=await asyncio.gather(*tasks)
+            results=list(chain.from_iterable(results))
+        except:
+            return 0
+        if not len(results):
+            return 0
+        df=pd.DataFrame(results)
         needed_cols=['updatedTime','closedPnl','createdTime']
         df = df[needed_cols].copy()
         df['updatedTime'] = pd.to_datetime(df['updatedTime'].astype('float64'), unit='ms')
@@ -50,7 +55,7 @@ async def get_user_pnl(user: User, use_last_sub_day:bool=False,only_sum=False) -
 
 async def get_all_user_pnl(users: Sequence[User]) -> Dict[User,float]:
     tasks=[(get_user_pnl(user,True,only_sum=True)) for user in users]
-    results=await asyncio.gather(*tasks)
+    results=await asyncio.gather(*tasks,r)
     # pnl_users={user.id:results[i] for i,user in enumerate(users)}
     pnl_users=dict(zip(users,results))
     return pnl_users
