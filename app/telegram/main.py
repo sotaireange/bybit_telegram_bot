@@ -31,6 +31,8 @@ import json
 logger = logging.getLogger('system')
 
 
+
+
 async def on_startup(dispatcher: Dispatcher, bot: Bot):
     setup_routers(dispatcher)
     setup_middlewares(dispatcher)

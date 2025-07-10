@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     ADMIN_IDS: List[int] =[6422309975]
     DEV_ID: int = 6422309975
 
-
+    TRADING_MODE:str='auto' #auto/manually
     BOT_MODE: str = "polling"
     WEBHOOK_URL: str = 'https://fbd7-193-34-225-69.ngrok-free.app'
     WEBHOOK_HOST: str ='0.0.0.0'

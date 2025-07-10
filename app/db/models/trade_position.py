@@ -19,7 +19,6 @@ class Position:
     amount:float
     entry_price: float
     position_idx: PositionIdx
-    tpsl_order_id: str
     updated_time:str
     position_type: PositionType
     leverage:float
@@ -48,6 +47,8 @@ class MainPosition(Position):
 
     @classmethod
     def from_dict(cls, data):
+        if 'tpsl_order_id' in data:
+            data.pop('tpsl_order_id')
         if "position_idx" in data:
             data["position_idx"] = PositionIdx(data["position_idx"])
         return cls(**data)
@@ -64,6 +65,8 @@ class SecondaryPosition(Position):
 
     @classmethod
     def from_dict(cls, data):
+        if 'tpsl_order_id' in data:
+            data.pop('tpsl_order_id')
         if "position_idx" in data:
             data["position_idx"] = PositionIdx(data["position_idx"])
         return cls(**data)

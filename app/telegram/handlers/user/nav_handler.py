@@ -9,6 +9,7 @@ from aiogram.types import CallbackQuery, Message,ChatMemberUpdated,BotCommand
 from aiogram.filters import CommandStart,Command
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.common.config import settings
 
 from app.db.services import postgres_db as pdb
 from app.db.services import RedisClient
@@ -20,6 +21,8 @@ from . import navigate_router as router
 from app.telegram.utils.messages import msg
 from app.telegram.utils.stock_helper import check_permissions, get_user_positions,close_all_order_user,get_unrealised_pnl_user,check_bybit_uids
 from ...utils.pnl_helper import get_user_pnl
+
+
 logger = logging.getLogger('aiogram')
 
 
@@ -30,8 +33,16 @@ async def setup_commands(bot: Bot):
         BotCommand(command="start", description="🚀 Запустить бота"),
         BotCommand(command="menu", description="📋 Главное меню"),
         BotCommand(command="positions", description="📊 Мои позиции"),
-        BotCommand(command="total_exit",description="Выход из всех позиций! "),
+        BotCommand(command="total_exit",description="Выход из всех позиций! ")
     ]
+    if settings.TRADING_MODE == 'manually':
+        commands.append(
+            BotCommand(
+                command="signal",
+                description="Добавление сигнала (<coin1>,<coin2>_<1>,<0> (1-Long,0-Short)"
+            )
+        )
+
     await bot.set_my_commands(commands)
 
 @router.message(CommandStart(),flags={'create':True})
@@ -43,7 +54,7 @@ async def start_message(message: Message,redis_client: RedisClient,user: User):
 @router.callback_query(lambda call: call.data=='main_menu')
 async def main_menu_callback(call: CallbackQuery, state: FSMContext,redis_client: RedisClient,user:User):
     await state.set_state(Main.UNRUN)
-    run=await redis_client.get_is_run(int(call.message.from_user.id))
+    run=await redis_client.get_is_run(int(call.from_user.id))
     text= msg.get_menu_text(user, run)
     try:
         await call.message.edit_text(text,reply_markup=keyboards.main_menu(flag=run))
@@ -66,7 +77,7 @@ async def stock_callback(call: CallbackQuery, state: FSMContext,user:User):
 @router.callback_query(lambda call: call.data=='check_api')
 async def stock_check_callback(call: CallbackQuery, state: FSMContext,user:User,db:AsyncSession):
     permissions=await check_permissions(user)
-    await check_bybit_uids(db,user)
+    await check_bybit_uids(db,user,permissions)
     text= msg.get_permission_text(permissions)
     await call.message.edit_text(text,reply_markup=keyboards.stock_menu())
 
@@ -116,7 +127,6 @@ async def confirm_exit_order_handler(call: CallbackQuery,db:AsyncSession,redis_c
         await call.message.edit_text(text,reply_markup=keyboards.main_menu(flag=Run.OFF))
     except:
         pass
-
 
 
 @router.my_chat_member()

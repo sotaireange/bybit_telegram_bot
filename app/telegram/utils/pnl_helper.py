@@ -55,7 +55,7 @@ async def get_user_pnl(user: User, use_last_sub_day:bool=False,only_sum=False) -
 
 async def get_all_user_pnl(users: Sequence[User]) -> Dict[User,float]:
     tasks=[(get_user_pnl(user,True,only_sum=True)) for user in users]
-    results=await asyncio.gather(*tasks,r)
+    results=await asyncio.gather(*tasks)
     # pnl_users={user.id:results[i] for i,user in enumerate(users)}
     pnl_users=dict(zip(users,results))
     return pnl_users

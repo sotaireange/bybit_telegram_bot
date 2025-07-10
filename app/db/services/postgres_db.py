@@ -52,7 +52,6 @@ async def update_bybit_uid(db:AsyncSession,user_id:int,bybit_uid:int) -> None:
         return
 
     if bybit_uid is not None:
-        # Проверим, не занят ли уже другим пользователем
         result = await db.execute(
             select(User).where(User.bybit_uid == bybit_uid, User.id != user_id)
         )

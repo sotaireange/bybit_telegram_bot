@@ -69,8 +69,7 @@ class HedgePositionManager:
 
     async def set_main_position(
             self,
-            position_data: Dict[str,str],
-            take_profit_order_id:str
+            position_data: Dict[str,str]
     ) -> MainPosition:
         coin = position_data.get("symbol")
         position_idx = PositionIdx(safe_float(position_data.get("positionIdx", 0)))
@@ -100,7 +99,6 @@ class HedgePositionManager:
             position_idx=position_idx,
             entry_price=entry_price,
             take_profit_price=take_profit,
-            tpsl_order_id=take_profit_order_id,
             tracking_price=tracking_price,
             updated_time=updated_time,
             position_type=PositionType.MAIN,
@@ -116,8 +114,7 @@ class HedgePositionManager:
 
     async def set_secondary_position(
             self,
-            position_data: Dict[str,str],
-            stop_loss_order_id:str
+            position_data: Dict[str,str]
     ) -> SecondaryPosition:
         coin = position_data.get("symbol")
         position_idx = PositionIdx(safe_float(position_data.get("positionIdx", 0)))
@@ -141,7 +138,6 @@ class HedgePositionManager:
                     entry_price=entry_price,
                     updated_time=updated_time,
                     stop_loss_price=stop_loss,
-                    tpsl_order_id=stop_loss_order_id,
                     position_type=PositionType.HEDGE,
                     leverage=self.settings.leverage
 
@@ -188,14 +184,7 @@ class HedgePositionManager:
         df.sort_values(by=['symbol','updatedTime'],inplace=True,ascending=[False,True])
 
 
-    def get_tp_order(self,coin:str) -> Optional[str]:
-        if coin in self.positions:
-            return self.positions[coin].main_position.tpsl_order_id
 
-
-    def get_sl_order(self,coin:str) -> Optional[str]:
-        if coin in self.positions:
-            return self.positions[coin].secondary_position.tpsl_order_id
 
 
     def get_position(self, coin: str) -> Optional[HedgePosition]:

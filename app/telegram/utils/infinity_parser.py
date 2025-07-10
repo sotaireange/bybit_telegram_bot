@@ -77,7 +77,6 @@ async def infinity_get_data_coins(redis: Redis):
             try:
                 now = time.time()
 
-                # Обновление instrument_info раз в час
                 if now - last_info_update > 3600:
                     data = await get_instrument_info(exchange)
                     await redis_client.save_coins_info(data)
@@ -95,13 +94,14 @@ async def infinity_get_data_coins(redis: Redis):
                 df=df[df.any(axis=1)]
                 data=df.to_dict(orient='index')
                 if data:
+
                     await redis_client.save_coins(data)
 
 
                 await asyncio.sleep(1)
 
             except RequestTimeout as ReqEr:
-                logger.error(f"Request Timeout {ReqEr}")
+                logger.exception(f"Request Timeout {ReqEr}")
                 await exchange.close()
                 await asyncio.sleep(10)
                 exchange = ccxt.bybit({

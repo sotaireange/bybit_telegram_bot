@@ -3,9 +3,9 @@ from typing import Dict,List
 import logging
 
 from app.db.models import User,TelegramMessage,NotificationType,PositionType,Run,Payment,Notification
+from app.common.config import settings
 from app.telegram.utils.sub_helper import get_sub_days
 from datetime import datetime,timedelta
-import pytz
 
 logger=logging.getLogger('aiogram')
 
@@ -65,7 +65,11 @@ class MessageBuilder:
                             "Торговля заблокирована",
         "get_bybit_uid_error": "Вы используете дублирующий аккаунт.\n"
                                "Используйте тот Sub-account, который использовали изначально.",
-        "lost_api_secret": "Вы не указали API или Secret Key."
+        "lost_api_secret": "Вы не указали API или Secret Key.",
+        "error_when_add_coin": 'Вы указали неправильный формат добавления сигнала\n'
+                               'Правильное сообщение: /signal <coin1>,<coin2>_<1>,<0>\n'
+                               'например чтобы добавить BTCUSDT Long и ETHUSDT Short нужно написать:\n'
+                               '/signal BTCUSDT,ETHUSDT_1,0'
     }
 
     months = {
@@ -121,7 +125,8 @@ class MessageBuilder:
         else:
             text='Бот остановлен'
         text+='\n'
-        text+=cls.get_sub_text(user)
+        if settings.TRADING_MODE!='manually':
+            text+=cls.get_sub_text(user)
         # text+=cls.get_pnl_text(pnl)
         return text
 
@@ -174,7 +179,9 @@ class MessageBuilder:
         if not has_permission['has_api_secret']: return 'Не указан API/Secret\n'
         extra = (f'{'Чтение и запись.\n' if not has_permission['readonly'] else ''}'
                  f'{'Единый торговый аккаунт: Ордера, Позиции, Торговля дериативами USDC.' if not has_permission['permissions'] else ''}')
-        text=f"Все доступы имеются\n Ваш BybitUID {has_permission['result'].get('parentUid')}" if has_permission['status'] else f"Подключите доступы: \n{extra}"
+        text=(f"Все доступы имеются\n"
+              f"Ваш BybitUID - {has_permission['result'].get('parentUid')}\n"
+              f"Ваш UserID(Sub-Account) - {has_permission['result'].get('userID')}") if has_permission['status'] else f"Подключите доступы: \n{extra}"
         if has_permission.get('ret_code',0)!=0: text= has_permission['ret_msg']
         return text
 
@@ -200,7 +207,7 @@ class MessageBuilder:
         minutes = remainder // 60
 
         # Форматируем вывод
-        formatted = f"{days}д. {hours:02}ч. {minutes:02} мин."
+        formatted = f"{hours:02}ч. {minutes:02} мин."
         return f'Подписка  {formatted}\n' if days>0 else "Нужно оплатить подписку\n"
 
     @classmethod
@@ -268,11 +275,22 @@ class MessageBuilder:
 
     def get_payment_text(self,pnl:float) -> str:
         if pnl>10:
-            text=(f'Заработано {pnl:.2f}$\n'
-                  f'К оплате {pnl/2:.2f}$')
+            text=(f'Заработано {pnl:.2f}$\n')
+            if settings.TRADING_MODE!='manually':
+                text+=f'К оплате {pnl/2:.2f}$'
         else:
-            text=(f'Pnl составил {pnl:.2f}$\n'
-                  f'Оплата не требуется')
+            text=(f'Pnl составил {pnl:.2f}$\n')
+            if settings.TRADING_MODE!='manually':
+                text+=(f'Оплата не требуется')
         return text
+
+    def get_coins_add_text(self,data) -> str:
+        text=f'Было добавлено:'
+        for coin,signal in data.items():
+            text+=f'{coin} - {'Long' if signal['Long'] else 'Short'}'
+        return text
+
+
+
 
 msg=MessageBuilder()

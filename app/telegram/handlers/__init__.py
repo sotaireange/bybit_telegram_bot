@@ -9,6 +9,7 @@ from .user import navigate_router as nav_router
 from .user import setting_router as set_router
 from .user import run_router
 
+from app.common.config import settings
 
 
 from app.telegram.middlewares import (DatabaseMiddleware,
@@ -16,7 +17,8 @@ from app.telegram.middlewares import (DatabaseMiddleware,
                                       SetValueMiddleware,
                                       GetUsersMiddleware,
                                       AdminSetValueMiddleware,
-                                      PaymentAmountMiddleware)
+                                      PaymentAmountMiddleware,
+                                      ManuallyMiddleware)
 
 
 def setup_routers(dp: Dispatcher):
@@ -26,7 +28,8 @@ def setup_routers(dp: Dispatcher):
 def setup_middlewares(dp: Dispatcher):
     #dp.update.middleware.register(RedisMiddleware(r))
     dp.update.middleware.register(DatabaseMiddleware(db))
-
+    if settings.TRADING_MODE=='manually':
+        dp.update.middleware.register(ManuallyMiddleware)
     set_router.message.middleware.register(SetValueMiddleware(db))
 
     nav_router.callback_query.middleware.register(GetUsersMiddleware(db))

@@ -51,9 +51,10 @@ async def check_permissions(user:User) -> Dict:
     readonly=False
     has_permission=False
     parentUid=0
-    result={}
+    userID=0
     ret_code=0
     ret_msg=None
+    result={}
     if flag:
         try:
             client:BybitRequester =BybitRequester(user.api, user.secret, testnet)
@@ -68,6 +69,7 @@ async def check_permissions(user:User) -> Dict:
             has_permission=(permissions['ContractTrade']==['Order','Position'] and
                             permissions['Derivatives']==['DerivativesTrade'])
             parentUid=result.get('parentUid')
+            userID=result.get('userID',0)
 
     return {'status': readonly and has_permission and flag,
           'readonly': readonly,
@@ -76,14 +78,14 @@ async def check_permissions(user:User) -> Dict:
           'parentUid': parentUid,
           'result':result,
           'ret_code':ret_code,
-          'ret_msg':ret_msg}
+          'ret_msg':ret_msg,
+          'userID': userID}
 
 
 
-async def check_bybit_uids(db:AsyncSession,user:User):
-    permissions=await check_permissions(user)
-    bybit_uid=int(permissions.get('parentUid',0))
-    bybit_sub_account_uid=int(permissions.get('userID',0))
+async def check_bybit_uids(db:AsyncSession,user:User,data:dict):
+    bybit_uid=int(data.get('parentUid',0))
+    bybit_sub_account_uid=int(data.get('userID',0))
     if bybit_uid:
         await pdb.update_bybit_uid(db,user.id,bybit_uid)
     if bybit_sub_account_uid:

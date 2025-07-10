@@ -7,7 +7,11 @@ from faststream.redis import RedisBroker
 
 from aiogram import Router
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery
+from aiogram.types import CallbackQuery,Message
+from aiogram.filters import Command
+
+
+from app.common.config import settings
 
 
 from app.worker.broker import publish_task
@@ -20,7 +24,7 @@ from app.telegram.utils.stock_helper import check_permissions
 from app.telegram.utils.messages import msg
 from app.telegram.utils.datetime_helper import sub_is_over
 from app.telegram.utils.stock_helper import check_bybit_uids
-
+from app.telegram.utils.pnl_helper import get_user_pnl
 
 router=Router(name='run')
 
@@ -39,26 +43,30 @@ async def run(call: CallbackQuery, state: FSMContext,redis_client:RedisClient,us
 
     status=await check_permissions(user)
     user_id=call.from_user.id
-    await check_bybit_uids(db,user)
+    await check_bybit_uids(db,user,status)
     user=await pdb.get_user(db,user_id)
     if not status.get('status',0):
         text=msg.get_permission_text(status)
         await call.message.edit_text(text=text,reply_markup=keyboards.main_menu(Run.OFF))
         return
+
     await redis_client.set_is_run(user_id,Run.OFF)
 
-
-    if sub_is_over(user):
+    if sub_is_over(user) and settings.TRADING_MODE!='manually':
         text=msg('sub_is_over')
-        await call.message.edit_text(text=text,reply_markup=keyboards.subs_menu())
-        return
+        pnl=await get_user_pnl(user,True,True)
+        if pnl<10:
+            await pdb.extend_subscription(db,user_id,1)
+        else:
+            await call.message.edit_text(text=text,reply_markup=keyboards.subs_menu())
+            return
     if user.bybit_uid is None:
         text=msg('bybit_uid_is_bad')
         await call.message.edit_text(text=text,reply_markup=keyboards.main_menu(Run.OFF))
         return
 
     if not user.bybit_sub_account_uid:
-        text=msg('get_bybit_uid_error')('')
+        text=msg('get_bybit_uid_error')
         await call.message.edit_text(text=text,reply_markup=keyboards.main_menu(Run.OFF))
         return
 
@@ -82,7 +90,7 @@ async def unrun(call: CallbackQuery, state: FSMContext,redis_client:RedisClient,
 
     status=await check_permissions(user)
     user_id=call.from_user.id
-    await check_bybit_uids(db,user)
+    await check_bybit_uids(db,user,status)
     user=await pdb.get_user(db,user_id)
     if not status.get('status',0):
         text=msg.get_permission_text(status)
@@ -130,5 +138,25 @@ async def unrun(call: CallbackQuery, state: FSMContext,redis_client:RedisClient,
 
 
 
+@router.message(Command('signal'))
+async def signal(message: Message, redis_client: RedisClient, user: User):
+    if settings.TRADING_MODE!='manually':
+        return
+    user_id=int(message.from_user.id)
+    text=message.text
+    coins,signal=(text.split(' '))[1].split('_')
+    data={}
+    coins_info_keys=(await redis_client.get_all_coins_info()).keys()
+    try:
+        for coin,buy in zip(coins.split(','),map(int,signal.split(','))):
+            if not coin.endswith('USDT') or not isinstance(buy,int) or (coin not in coins_info_keys):
+                continue
+            data[coin]={"Long": bool(buy),"Short": not bool(buy)}
+    except:
+        await msg("error_when_add_coin")
+        await message.bot.send_message(chat_id=msg.chat.id,text=text)
+        return
 
-
+    await redis_client.save_coin_by_user(data,user_id)
+    await msg.get_coins_add_text(data)
+    await message.bot.send_message(chat_id=msg.chat.id,text=text)

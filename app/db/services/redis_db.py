@@ -69,21 +69,30 @@ class RedisClient:
 
     COINS_KEY = "coins"
 
-    async def get_coins(self) -> dict:
-        res = await self.redis.hgetall(self.COINS_KEY)
+
+    async def get_coins_with_delete_by_user(self,user_id:int) -> dict:
+        result = await self.get_coins(f'{self.COINS_KEY}_{user_id}')
+        await self.redis.hdel(f'{self.COINS_KEY}_{user_id}',*result.keys())
+        return result
+
+    async def save_coin_by_user(self,data:dict,user_id:int):
+        await self.save_coins(data,f'{self.COINS_KEY}_{user_id}')
+
+    async def get_coins(self,key:str=COINS_KEY) -> dict:
+        res = await self.redis.hgetall(key)
         return {k: json.loads(v) for k, v in res.items()}
 
-    async def save_coins(self, data: dict):
-        existing_keys = set(await self.redis.hkeys(self.COINS_KEY))
+    async def save_coins(self, data: dict, key:str=COINS_KEY):
+        existing_keys = set(await self.redis.hkeys(key))
 
         new_keys = set(data.keys())
 
         keys_to_delete = existing_keys - new_keys
         if keys_to_delete:
-            await self.redis.hdel(self.COINS_KEY, *keys_to_delete)
+            await self.redis.hdel(key, *keys_to_delete)
 
         json_data = {k: json.dumps(v) for k, v in data.items()}
-        await self.redis.hset(self.COINS_KEY, mapping=json_data)
+        await self.redis.hset(key, mapping=json_data)
 
     COIN_INFO_KEY = "coins_info"
 

@@ -106,7 +106,7 @@ class TradeBot:
 
     async def get_position_due_side(self,coin:Hashable,side:str) -> Dict:
         positions=await get_positions(self.client,coin)
-        position=[position for position in positions if position['side']==side]
+        position=[position for position in positions if position.get('side')==side]
         return position[0] if len(position)>0 else {}
 
     async def have_both_side_position(self,coin: Hashable) -> bool:
@@ -170,6 +170,23 @@ class TradeBot:
                 await asyncio.sleep(0.1)
             await asyncio.sleep(5)
 
+    async def reload_positions(self):
+        while self.is_running!=Run.OFF:
+            positions=await get_all_position(self.client)
+            await self.hp_manager.load_from_redis()
+            coins_to_add={}
+            for position in positions:
+                symbol=position['symbol']
+                if position['takeProfit'] and not self.hp_manager.get_main_position(symbol):
+                    coins_to_add.setdefault(symbol,{})['main']=position
+                elif position['stopLoss'] and not self.hp_manager.get_second_position(symbol):
+                    coins_to_add.setdefault(symbol,{})['second']=position
+            for position in coins_to_add.values():
+                if position.get('main'):
+                    await self.hp_manager.set_main_position(position['main'])
+                if position.get('second'):
+                    await self.hp_manager.set_secondary_position(position['second'])
+            await asyncio.sleep(120)
 
     async def fetch_hedge_coin(self,coin:str):
         try:
@@ -267,6 +284,7 @@ class TradeBot:
 
     async def after_fetch_coin(self, coin: Hashable, order: Dict, is_hedge: bool = False):
         try:
+
             order_entry = await self.get_order(coin, order['orderId'])
             if not order_entry or order_entry['orderStatus'] == 'Cancelled':
                 logger.debug(f"User: {self.user_id} Coin: {coin} hasn't order status {order_entry.get('orderStatus')}")
@@ -283,13 +301,12 @@ class TradeBot:
                     f"but have order_entry: {order_entry.get('orderId')} - {order_entry.get('orderStatus')}"
                 )
                 return
-
             position = await self.get_position_due_side(coin, side_entry)
             if isinstance(position, dict) and position:
                 if is_hedge:
-                    position=await self.hp_manager.set_secondary_position(position, recent_orders['orderId'])
+                    position=await self.hp_manager.set_secondary_position(position)
                 else:
-                    position=await self.hp_manager.set_main_position(position, recent_orders['orderId'])
+                    position=await self.hp_manager.set_main_position(position)
 
                 if position and self.is_notification:
                     msg=TelegramMessage(user_id=self.user_id,type=NotificationType.POSITION_OPEN,data=position)
@@ -365,13 +382,12 @@ class TradeBot:
                     await switch_position_mode(self.client)
 
                     if not (await self.have_balance()) or len(self.hp_manager.positions)>self.settings.balance:
-                        balance=await get_balance(self.client)
-
-                        await asyncio.sleep(10)
-                        logger.warning(f"Haven't Balance or orders>80 \n{balance}\n{len(self.hp_manager.positions)} {self.settings.balance}")
+                        await asyncio.sleep(60)
                         continue
-
-                    coins=pd.DataFrame.from_dict(await self.redis_client.get_coins(),orient='index')
+                    if settings.TRADING_MODE=='manually':
+                        coins=pd.DataFrame.from_dict(await self.redis_client.get_coins_with_delete_by_user(user_id=self.user_id),orient='index')
+                    else:
+                        coins=pd.DataFrame.from_dict(await self.redis_client.get_coins(),orient='index')
                     coins = pd.concat([coins,df_info],axis=1,join='inner')
                     coins=coins[coins[['Long','Short']].any(axis=1)]
                     for _,coin in coins.iterrows():
@@ -396,7 +412,8 @@ class TradeBot:
             self.check_settings(),
             self.check_hedge(),
             self.check_positions(),
-            self.trading_task()
+            self.trading_task(),
+            self.reload_positions()
         ]
 
         for task in tasks:

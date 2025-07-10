@@ -1,7 +1,7 @@
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from app.db.models import Run,Notification
-
+from app.common.config import settings
 def main_menu(flag:Run=Run.OFF):
     markup= InlineKeyboardBuilder()
     if flag==Run.OFF:
@@ -18,7 +18,8 @@ def main_menu(flag:Run=Run.OFF):
     markup.row(InlineKeyboardButton(text="Настройка биржи",callback_data="stock_menu"))
     markup.row(InlineKeyboardButton(text="Позиции",callback_data="positions"))
     markup.row(InlineKeyboardButton(text="Уведомления",callback_data="notification"))
-    markup.row(InlineKeyboardButton(text="Подписка",callback_data="subs_menu"))
+    if settings.TRADING_MODE!='manually':
+        markup.row(InlineKeyboardButton(text="Подписка",callback_data="subs_menu"))
     return markup.as_markup()
 
 

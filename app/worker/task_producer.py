@@ -28,7 +28,7 @@ class TaskWorker:
         self.app:FastStream
         self.session = AsyncSessionLocal
         self._shutdown_event = asyncio.Event()
-
+        self.tasks={}
 
     async def init(self):
         """Инициализация воркера с proper error handling"""
@@ -82,29 +82,9 @@ class TaskWorker:
                     logger.error(f"Task {task_id} not found in database")
                     return
                 await Task.update(session=session, task_id=task_id,status=TaskStatus.PROCESSING)
-            result_data = {}
 
-            try:
-                # Выполнение задачи
-                await self._execute_task(task)
-                result_data.update({
-                    'status': TaskStatus.COMPLETED,
-                    'result': 'Корректно завершилось'
-                })
-                logger.info(f"Task {task_id} completed successfully")
-
-            except Exception as e:
-                logger.error(f"Task {task_id} failed: {e}")
-                result_data.update({
-                    'error': str(e),
-                    'status': TaskStatus.FAILED,
-                    'result': 'Ошибка'
-                })
-
-            # Обновление статуса задачи
-            async with self.session() as session:
-                await Task.update(session=session, task_id=task_id, **result_data)
-
+            task=asyncio.create_task(self.handle_task(task=task))
+            self.tasks[task_id]=task
         except Exception as e:
             logger.exception(f"Critical error processing task {task_id}: {e}")
             raise
@@ -119,7 +99,31 @@ class TaskWorker:
             logger.error(f"Trading execution failed for user {task.user_id}: {e}")
             raise
 
+    async def handle_task(self,task):
+        task_id=task.id
+        result_data = {}
+        try:
+            # Выполнение задачи
+            await self._execute_task(task)
+            result_data.update({
+                'status': TaskStatus.COMPLETED,
+                'result': 'Корректно завершилось'
+            })
+            logger.info(f"Task {task_id} completed successfully")
 
+        except Exception as e:
+            logger.error(f"Task {task_id} failed: {e}")
+            result_data.update({
+                'error': str(e),
+                'status': TaskStatus.FAILED,
+                'result': 'Ошибка'
+            })
+
+            # Обновление статуса задачи
+        async with self.session() as session:
+            await Task.update(session=session, task_id=task_id, **result_data)
+
+        self.tasks.pop(task_id)
     async def health_check(self):
         try:
             if self.broker:
@@ -179,6 +183,15 @@ class TaskWorker:
             logger.info("TaskWorker shutdown completed")
         except Exception as e:
             logger.error(f"Error during shutdown: {e}")
+
+        for task_id,task in self.tasks.items():
+            try:
+                task.cancel()
+                await asyncio.wait_for(task, timeout=5)
+            except asyncio.TimeoutError as er:
+                logger.debug((f"{task.get_name()} took too long to cancel. {er}"))
+            except asyncio.CancelledError as er:
+                logger.debug((f"{task.get_name()} Cancelled. {er}"))
 
 
 
