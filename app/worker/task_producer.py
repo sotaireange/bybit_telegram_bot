@@ -31,7 +31,6 @@ class TaskWorker:
         self.tasks={}
 
     async def init(self):
-        """Инициализация воркера с proper error handling"""
         try:
             self.broker = await create_redis_broker(settings.REDIS_URL)
             self.app = FastStream(broker=self.broker, logger=faststream_logger)
@@ -45,10 +44,8 @@ class TaskWorker:
                 logger.info("FastStream application shutting down")
 
 
-            # Регистрация подписчиков
             subscribe_to_tasks(self.broker, self.process_task)
 
-            # Настройка graceful shutdown
             self._setup_signal_handlers()
 
             logger.info('TaskWorker initialized successfully')
@@ -59,7 +56,6 @@ class TaskWorker:
 
 
     def _setup_signal_handlers(self):
-        """Настройка обработчиков сигналов для graceful shutdown"""
         def signal_handler(signum, frame):
             logger.info(f"Received signal {signum}, initiating shutdown...")
             asyncio.create_task(self.shutdown())
@@ -71,7 +67,6 @@ class TaskWorker:
 
 
     async def process_task(self, msg: TaskMessage):
-        """Обработка задачи с улучшенной обработкой ошибок"""
         task_id = msg.task_id
         logger.info(f"Processing task: {task_id}")
 
@@ -103,7 +98,6 @@ class TaskWorker:
         task_id=task.id
         result_data = {}
         try:
-            # Выполнение задачи
             await self._execute_task(task)
             result_data.update({
                 'status': TaskStatus.COMPLETED,
@@ -119,7 +113,6 @@ class TaskWorker:
                 'result': 'Ошибка'
             })
 
-            # Обновление статуса задачи
         async with self.session() as session:
             await Task.update(session=session, task_id=task_id, **result_data)
 
@@ -147,7 +140,6 @@ class TaskWorker:
                 logger.error(f"Failed to restart broker: {e}")
                 raise
     async def run(self):
-        """Запуск воркера с мониторингом здоровья"""
         health_check_task = asyncio.create_task(self._health_check_loop())
         try:
             await self.app.run()
@@ -162,7 +154,7 @@ class TaskWorker:
     async def _health_check_loop(self):
         while not self._shutdown_event.is_set():
             try:
-                await asyncio.sleep(60)  # Проверка каждую минуту
+                await asyncio.sleep(60)
                 if not await self.health_check():
                     await self.restart_broker_if_needed()
             except asyncio.CancelledError:
@@ -171,7 +163,6 @@ class TaskWorker:
                 logger.error(f"Health check loop error: {e}")
 
     async def shutdown(self):
-        """Graceful shutdown воркера"""
         logger.info("Shutting down TaskWorker...")
         self._shutdown_event.set()
 

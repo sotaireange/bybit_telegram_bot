@@ -9,7 +9,6 @@ logger=logging.getLogger('worker')
 
 
 async def create_redis_broker(redis_url: str) -> RedisBroker:
-    """Создание Redis брокера с улучшенными настройками подключения"""
     broker = RedisBroker(
         redis_url,
         max_connections=20,
@@ -26,7 +25,6 @@ async def create_redis_broker(redis_url: str) -> RedisBroker:
 
 
 async def publish_task(broker: RedisBroker, task_message: TaskMessage, max_retries: int = 3) -> bool:
-    """Публикация задачи с retry механизмом"""
     for attempt in range(max_retries):
         try:
             await broker.publish(task_message, "task_queue")
