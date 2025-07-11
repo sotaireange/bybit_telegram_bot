@@ -99,7 +99,7 @@ class TradeBot:
         if proof_result(balance,dict):
             available_balance=float(balance.get('totalAvailableBalance',0))
             total_balance=float(balance.get('totalWalletBalance',1))
-            return available_balance/(total_balance+0.000000001) > (1-self.settings.balance/100)
+            return ((available_balance/(total_balance+0.000000001) > (1-self.settings.balance/100)) and (available_balance>5.0))
         logger.warning('Balance in have_balance does not dict')
         return False
 
