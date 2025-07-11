@@ -29,7 +29,7 @@ def setup_middlewares(dp: Dispatcher):
     #dp.update.middleware.register(RedisMiddleware(r))
     dp.update.middleware.register(DatabaseMiddleware(db))
     if settings.TRADING_MODE=='manually':
-        dp.update.middleware.register(ManuallyMiddleware)
+        dp.update.middleware.register(ManuallyMiddleware())
     set_router.message.middleware.register(SetValueMiddleware(db))
 
     nav_router.callback_query.middleware.register(GetUsersMiddleware(db))
