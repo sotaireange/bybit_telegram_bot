@@ -153,10 +153,10 @@ async def signal(message: Message, redis_client: RedisClient, user: User):
                 continue
             data[coin]={"Long": bool(buy),"Short": not bool(buy)}
     except:
-        await msg("error_when_add_coin")
+        text= msg("error_when_add_coin")
         await message.bot.send_message(chat_id=msg.chat.id,text=text)
         return
 
     await redis_client.save_coin_by_user(data,user_id)
-    await msg.get_coins_add_text(data)
+    text=msg.get_coins_add_text(data)
     await message.bot.send_message(chat_id=msg.chat.id,text=text)
