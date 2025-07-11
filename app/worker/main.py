@@ -15,6 +15,7 @@ async def main():
     await worker.init()
 
     setup_fast_streamlogging(logging.WARNING)
+
     await worker.run()
 
 if __name__ == "__main__":
