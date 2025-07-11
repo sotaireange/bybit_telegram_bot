@@ -285,9 +285,9 @@ class MessageBuilder:
         return text
 
     def get_coins_add_text(self,data) -> str:
-        text=f'Было добавлено:'
+        text=f'Было добавлено:\n'
         for coin,signal in data.items():
-            text+=f'{coin} - {'Long' if signal['Long'] else 'Short'}'
+            text+=f'{coin} - {'Long' if signal['Long'] else 'Short'}\n'
         return text
 
 
