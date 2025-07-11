@@ -44,6 +44,7 @@ def setup_middlewares(dp: Dispatcher):
 
     #run_router.callback_query.middleware.register(RedisMiddleware(r))
     run_router.callback_query.middleware.register(GetUsersMiddleware(db))
+    run_router.message.middleware.register(GetUsersMiddleware(db))
     run_router.callback_query.middleware.register(DatabaseMiddleware(db))
 
 
