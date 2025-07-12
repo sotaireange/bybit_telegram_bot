@@ -23,7 +23,12 @@ class ManuallyMiddleware(BaseMiddleware):
             event: Update,
             data: Dict[str, Any]
     ) -> Any:
-        user_id=event.from_user.id
+        if event.message and event.message.from_user:
+            user_id = event.message.from_user.id
+        elif event.callback_query and event.callback_query.from_user:
+            user_id = event.callback_query.from_user.id
+        else:
+            user_id=None
         if user_id in settings.ADMIN_IDS:
             return await handler(event, data)
         return
