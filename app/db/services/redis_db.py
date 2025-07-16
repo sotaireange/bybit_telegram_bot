@@ -72,7 +72,10 @@ class RedisClient:
 
     async def get_coins_with_delete_by_user(self,user_id:int) -> dict:
         result = await self.get_coins(f'{self.COINS_KEY}_{user_id}')
-        await self.redis.hdel(f'{self.COINS_KEY}_{user_id}',*result.keys())
+        if result and result.keys():
+            keys_to_delete = list(result.keys())
+            if keys_to_delete:
+                await self.redis.hdel(f'{self.COINS_KEY}_{user_id}', *keys_to_delete)
         return result
 
     async def save_coin_by_user(self,data:dict,user_id:int):
