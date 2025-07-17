@@ -388,7 +388,7 @@ class TradeBot:
                         coins=pd.DataFrame.from_dict(await self.redis_client.get_coins_with_delete_by_user(user_id=self.user_id),orient='index')
                     else:
                         coins=pd.DataFrame.from_dict(await self.redis_client.get_coins(),orient='index')
-                    if not coins:
+                    if coins.empty:
                         await asyncio.sleep(10)
                         continue
                     coins = pd.concat([coins,df_info],axis=1,join='inner')
