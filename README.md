@@ -36,7 +36,6 @@ A high-performance asynchronous trading bot for Bybit with full Telegram control
 ![SQLAlchemy](https://img.shields.io/badge/SQLAlchemy-D71F00?style=for-the-badge&logo=sqlalchemy&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-316192?style=for-the-badge&logo=postgresql&logoColor=white)
 ![Redis](https://img.shields.io/badge/Redis-%23DD0031?style=for-the-badge&logo=redis&logoColor=white)
-![CCXT](https://img.shields.io/badge/CCXT-169433?style=for-the-badge)
 ![Aiohttp](https://img.shields.io/badge/Aiohttp-2C5282?style=for-the-badge&logo=python&logoColor=white)
 
 ---
