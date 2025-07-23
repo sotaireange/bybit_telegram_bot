@@ -85,7 +85,8 @@ REDIS_DB=1
 1. **Run services** (in separate terminals):
 
 ```bash
-poetry run python -m app.telegram.main   # Telegram interface poetry run python -m app.worker.main     # Background trading logic`
+poetry run python -m app.telegram.main  # Telegram interface poetry run python -m 
+app.worker.main  # Background trading logic`
 ```
 
 ---
