@@ -26,9 +26,10 @@ async def get_pnl_result_from_chunk(bybit_requester:BybitRequester, chunks:List[
 async def get_user_pnl(user: User, use_last_sub_day:bool=False,only_sum=False) -> Union[pd.DataFrame,float]:
     df=pd.DataFrame()
     client=None
-    if not (user.api and user.secret): return df if not only_sum else 0
+    apis=user.get_api()
+    if not (apis): return df if not only_sum else 0
     try:
-        client=BybitRequester(user.api, user.secret, testnet)
+        client=BybitRequester(apis.api, apis.secret, testnet)
         splitter = TimeSplitter(user)
 
         chunk_weeks = splitter.get_recent_weeks(months_back=3,use_last_sub_day=use_last_sub_day)

@@ -57,6 +57,35 @@ async def place_order(
         return response
 
 
+async def change_tp_price(
+        bybit_requester: BybitRequester,
+        coin:Hashable,
+        order_id:str,
+        tp_price:float=0,
+) -> Optional[Dict]:
+
+    order_data = {
+        'category': 'linear',
+        'symbol': coin,
+        'orderId': order_id,
+        'takeProfit': str(tp_price)
+    }
+    response={}
+    try:
+        response = (await bybit_requester.send_signed_request(
+            method='POST',
+            endpoint='/v5/order/amend',
+            params=order_data
+        ))
+    except BybitApiError as e:
+        logger.error(f'Error in amend order\n'
+                     f'Data: {order_data}\nError: {e}')
+    except Exception as e:
+        logger.error(e,stack_info=True)
+
+    finally:
+        return response
+
 
 async def set_leverage(bybit_requester: BybitRequester,
                        coin: Union[Hashable,str],
@@ -320,3 +349,6 @@ async def get_pnl_from_chunks(bybit_requester: BybitRequester, chunk:Dict[str,da
         logger.error(e)
     finally:
         return response
+
+
+

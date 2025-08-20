@@ -1,14 +1,15 @@
 from datetime import timedelta,datetime,timezone
 import logging
-from typing import Optional,Dict,Sequence
+from typing import Optional,Dict,Sequence,List
 from aiogram.types import User as UserTelegram
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy import update
+from sqlalchemy import update,delete
+from sqlalchemy.orm import selectinload
 
 
-from app.db.models import User,Notification
+from app.db.models import User,Notification,UserAPI
 
 
 logger=logging.getLogger('system')
@@ -17,8 +18,22 @@ async def get_all_users(db:AsyncSession) -> Sequence[User]:
     result = await db.execute(select(User))
     return result.scalars().all()
 async def get_user(db: AsyncSession, user_id: int) -> User:
-    result = await db.execute(select(User).where(User.id == user_id))
+    result = await db.execute(select(User).options(selectinload(User.apis))
+                              .where(User.id == user_id))
     return result.scalar_one_or_none()
+
+async def get_user_one_api(db:AsyncSession,user_id:int,name:str) -> UserAPI:
+    stmt = select(UserAPI).where(UserAPI.user_id == user_id)
+
+    if name is not None:
+        stmt = stmt.where(UserAPI.name == name)
+
+    result = await db.execute(stmt)
+    return result.scalar_one_or_none()
+async def get_user_apis(db:AsyncSession,user_id:int) -> Sequence[UserAPI]:
+    stmt = select(UserAPI).where(UserAPI.user_id == user_id)
+    result = await db.execute(stmt)
+    return result.scalars().all()
 
 async def get_notification(db: AsyncSession, user_id: int) -> User:
     result = await db.execute(select(Notification).where(Notification.user_id == user_id))
@@ -173,3 +188,77 @@ async def create_new_user(db: AsyncSession, user_data: UserTelegram) -> User:
     await db.refresh(new_user)
 
     return new_user
+
+
+
+async def add_user_api(db: AsyncSession, user_id: int, name: str) -> UserAPI:
+    new_api = UserAPI(user_id=user_id, name=name)
+    db.add(new_api)
+    await db.commit()
+    await db.refresh(new_api)
+    return new_api
+
+
+async def update_user_api(
+        db: AsyncSession,
+        user_id: int,
+        new_api: str = None,
+        new_secret: str = None,
+        name: str = None,
+        run:bool=None,
+        single_api_mode: bool = False
+) -> bool:
+
+    if single_api_mode:
+        result = await db.execute(
+            select(UserAPI).where(UserAPI.user_id == user_id)
+        )
+        record = result.scalars().first()
+        if not record:
+            return False
+
+        if new_api is not None:
+            record.api = new_api
+        if new_secret is not None:
+            record.secret = new_secret
+
+        await db.commit()
+        return True
+
+    else:
+        if not name:
+            raise ValueError("old API IS REQUIRED")
+
+        stmt = (
+            update(UserAPI)
+            .where(UserAPI.user_id == user_id)
+            .where(UserAPI.name == name)
+            .execution_options(synchronize_session="fetch")
+        )
+
+        values = {}
+        if new_api is not None:
+            values["api"] = new_api
+        if new_secret is not None:
+            values["secret"] = new_secret
+        if run is not None:
+            values['run']=run
+
+        if not values:
+            return False
+
+        result = await db.execute(stmt.values(**values))
+        await db.commit()
+        rows = result.rowcount or 0
+        return rows > 0
+
+
+async def delete_user_api(db: AsyncSession, user_id: int, name: str) -> bool:
+    result = await db.execute(
+        delete(UserAPI)
+        .where(UserAPI.user_id == user_id)
+        .where(UserAPI.name == name)
+    )
+    await db.commit()
+    rows = result.rowcount or 0
+    return rows > 0

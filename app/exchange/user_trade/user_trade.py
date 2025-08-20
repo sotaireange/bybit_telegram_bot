@@ -9,11 +9,17 @@ import pandas as pd
 from app.common.config import settings
 
 from app.db.services import RedisClient
-from app.db.models import Run,TradeSettings,MainPosition,SecondaryPosition,TelegramMessage,NotificationType
+from app.db.models import (Run,TradeSettings,MainPosition,
+                           SecondaryPosition,TelegramMessage,
+                           NotificationType,UserAPI)
 
 
 from app.exchange.bybit_async import BybitRequester
-from app.exchange.bybit_async import get_positions,get_order,get_mark_price,set_leverage,get_balance,get_all_position, place_order,switch_position_mode
+from app.exchange.bybit_async import (get_positions,get_order,
+                                      get_mark_price,set_leverage,
+                                      get_balance,get_all_position,
+                                      place_order,switch_position_mode,
+                                      change_tp_price)
 
 from app.exchange.user_trade.utils import (improved_round_step_size,round_step_size, proof_result)
 from app.exchange.user_trade.orders import HedgePositionManager,PositionIdx
@@ -31,13 +37,12 @@ if sys.platform.startswith('win'):
 
 
 class TradeBot:
-    def __init__(self,user_id:int,user_data: Dict,redis_client:RedisClient):
+    def __init__(self,user_id:int,api:UserAPI,redis_client:RedisClient):
         self.is_running: Run= Run.ACTIVE
 
         self.user_id = user_id
         self.client: Optional[BybitRequester] = None
-        self.api_key = user_data.get('api_key')
-        self.api_secret = user_data.get('api_secret')
+        self.api=api
 
         self.settings: TradeSettings= TradeSettings()
 
@@ -55,7 +60,7 @@ class TradeBot:
         await self.broker.start()
 
     def set_client(self,testnet:bool = False):
-        self.client:BybitRequester=BybitRequester(self.api_key,self.api_secret,testnet=testnet)
+        self.client:BybitRequester=BybitRequester(self.api.api,self.api.secret,testnet=testnet)
 
 
     async def update_settings(self):
@@ -63,7 +68,7 @@ class TradeBot:
 
 
     async def init_hp_manager(self):
-        self.hp_manager=HedgePositionManager(self.user_id,self.redis,self.settings)
+        self.hp_manager=HedgePositionManager(self.user_id,self.redis,self.settings,self.api)
         await self.hp_manager.load_from_redis()
 
 
@@ -227,6 +232,11 @@ class TradeBot:
         except Exception as e:
             logger.exception(e)
 
+    async def change_tp_main_position(self,symbol:Hashable):
+        position=self.hp_manager.get_main_position(symbol)
+        #order_id=position.order_id
+        order_id=1234
+
 
 
     async def check_positions(self):
@@ -237,6 +247,7 @@ class TradeBot:
                     for pos in need_delete:
                         is_main=pos.get('is_main',True)
                         symbol=pos.get('symbol')
+                        position=None
                         if symbol:
                             if is_main:
                                 flag=await self.coin_in_trade(coin=symbol)
@@ -246,8 +257,9 @@ class TradeBot:
                                 flag=await self.have_both_side_position(coin=symbol)
                                 if not flag:
                                     position=await self.hp_manager.remove_secondary_position(symbol)
+                                    await self.change_tp_main_position(symbol)
 
-                            if self.is_notification: #and not flag:
+                            if self.is_notification and position: #and not flag:
                                 msg = TelegramMessage(user_id=self.user_id,type=NotificationType.POSITION_CLOSE, data=position)
                                 await self.send_notification(self.broker,msg)
                                 logger.debug(f'Position {'MAIN' if is_main else 'SECOND'} is over, coin {symbol}')
@@ -277,35 +289,48 @@ class TradeBot:
             mask = ~positions_db[keys].apply(tuple, axis=1).isin(keys_from_api)
             need_delete = positions_db[mask]
         else:
-            need_delete=positions_db
+            need_delete=pd.DataFrame()
         return need_delete.to_dict('records')
 
-
+    async def close_worst_pnl_position(self):
+        #TODO: Закрываем позицию, у которой самый низкий pnl
+        pass
 
     async def after_fetch_coin(self, coin: Hashable, order: Dict, is_hedge: bool = False):
         try:
 
             order_entry = await self.get_order(coin, order['orderId'])
-            if not order_entry or order_entry['orderStatus'] == 'Cancelled':
-                logger.debug(f"User: {self.user_id} Coin: {coin} hasn't order status {order_entry.get('orderStatus')}")
-                return
+            i=0
+            while (not order_entry or order_entry['orderStatus'] == 'Cancelled'):
+                order_entry = await self.get_order(coin, order['orderId'])
+                i+=1
+                if i==5:
+                    logger.warning(f"User: {self.user_id} Coin: {coin} hasn't order status {order_entry.get('orderStatus')}")
+                    return
             side_entry = order_entry['side']
 
 
             recent_orders = await self.get_order(coin,side=side_entry,history=False)
+            i=0
+            while not recent_orders:
+                recent_orders = await self.get_order(coin,side=side_entry,history=False)
 
-            if not recent_orders:
                 order_type = "tp_order" if is_hedge else "sl_order"
-                logger.warning(
-                    f"User: {self.user_id} Coin: {coin} without {order_type} \n"
-                    f"but have order_entry: {order_entry.get('orderId')} - {order_entry.get('orderStatus')}"
-                )
-                return
+
+                i+=1
+                if i==5:
+                    logger.warning(
+                        f"User: {self.user_id} Coin: {coin} without {order_type} \n"
+                        f"but have order_entry: {order_entry.get('orderId')} - {order_entry.get('orderStatus')}"
+                    )
+                    return
             position = await self.get_position_due_side(coin, side_entry)
             if isinstance(position, dict) and position:
                 if is_hedge:
                     position=await self.hp_manager.set_secondary_position(position)
                 else:
+                    order_id=recent_orders[0].get('orderId')
+
                     position=await self.hp_manager.set_main_position(position)
 
                 if position and self.is_notification:
@@ -380,8 +405,10 @@ class TradeBot:
             while self.is_running!=Run.OFF:
                 while self.is_running==Run.ACTIVE:
                     await switch_position_mode(self.client)
-
-                    if not (await self.have_balance()) or len(self.hp_manager.positions)>self.settings.balance:
+                    have_balance=await self.have_balance()
+                    if not (have_balance) or len(self.hp_manager.positions)>self.settings.balance:
+                        if not have_balance:
+                            await self.close_worst_pnl_position()
                         await asyncio.sleep(60)
                         continue
                     if settings.TRADING_MODE=='manually':

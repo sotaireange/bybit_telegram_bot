@@ -1,7 +1,7 @@
 from ._base import Base
 
 
-from .user import User
+from .user import User,UserAPI
 from .redis_models import TradeSettings,CoinSettings
 from .run import Run
 from .task import Task,TaskStatus

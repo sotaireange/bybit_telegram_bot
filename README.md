@@ -56,7 +56,9 @@ git clone https://github.com/your_username/repo_name.git
 cd repo_name
 poetry install
 ```
-1. **Configure environment variables**  
+1. **Get necessary credentials:**
+  A Telegram Bot Token from [@BotFather](https://www.google.com/url?sa=E&q=https%3A%2F%2Ft.me%2FBotFather).
+2. **Configure environment variables**  
    Create a `.env` file based on `app/common/config.py`.
 
 ```
@@ -82,7 +84,7 @@ REDIS_DB=1
 ```
 
 
-1. **Run services** (in separate terminals):
+3. **Run services** (in separate terminals):
 
 ```bash
 poetry run python -m app.telegram.main  # Telegram interface poetry run python -m 

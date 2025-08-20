@@ -36,7 +36,8 @@ logger=logging.getLogger('aiogram')
 
 @router.callback_query(lambda call: call.data=="run")
 async def run(call: CallbackQuery, state: FSMContext,redis_client:RedisClient,user:User,db:AsyncSession,broker:RedisBroker):
-    if not user.api or not user.secret:
+    apis=user.pick_api()
+    if not apis.api or not apis.secret:
         text=msg('lost_api_secret')
         await call.message.edit_text(text=text,reply_markup=keyboards.main_menu(Run.OFF))
         return
@@ -83,7 +84,8 @@ async def run(call: CallbackQuery, state: FSMContext,redis_client:RedisClient,us
 
 @router.callback_query(lambda call: call.data=="hedge")
 async def unrun(call: CallbackQuery, state: FSMContext,redis_client:RedisClient,user:User,db:AsyncSession,broker:RedisBroker):
-    if not user.api or not user.secret:
+    apis=user.pick_api()
+    if not apis.api or not apis.secret:
         text=msg('lost_api_secret')
         await call.message.edit_text(text=text,reply_markup=keyboards.main_menu(Run.OFF))
         return

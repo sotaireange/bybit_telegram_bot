@@ -7,18 +7,19 @@ import pandas as pd
 from redis.asyncio import Redis
 from .utils import safe_float
 
-from app.db.models import TradeSettings
+from app.db.models import TradeSettings,UserAPI
 from app.db.models import HedgePosition,MainPosition,SecondaryPosition,PositionIdx,PositionType
 
 
 
 class HedgePositionManager:
-    def __init__(self, user_id: int, redis: Redis, settings: TradeSettings):
+    def __init__(self, user_id: int, redis: Redis, settings: TradeSettings,api:UserAPI):
         self.user_id = user_id
         self.redis = redis
-        self.redis_key = f"hedge_positions:{self.user_id}"
+        self.redis_key = f"hedge_positions:{self.user_id}"#:{api.name}"
         self.positions: Dict[str, HedgePosition] = {}
         self.settings = settings
+        self.api=api
 
     async def load_from_redis(self):
         raw_data = await self.redis.hgetall(self.redis_key)

@@ -2,7 +2,7 @@ import asyncio
 from typing import Dict,List
 import pandas as pd
 import random
-
+from app.common.config import settings
 from app.db.models import User
 from app.exchange.bybit_async import BybitRequester, get_all_position,get_api_permissions,close_order
 from app.db.services import postgres_db as pdb
@@ -14,7 +14,8 @@ testnet=False
 
 
 async def close_all_order_user(user:User):
-    client:BybitRequester =BybitRequester(user.api, user.secret, False)
+    apis = user.get_api()
+    client:BybitRequester =BybitRequester(apis.api, apis.secret, False)
     try:
         positions = await get_all_position(client)
         if positions:
@@ -29,8 +30,9 @@ async def close_all_order_user(user:User):
 
 async def get_user_positions(user:User) -> List[Dict]:
     positions=[]
-    if user.api and user.secret:
-        client:BybitRequester =BybitRequester(user.api, user.secret, testnet)
+    apis=user.pick_api()
+    if apis:
+        client:BybitRequester =BybitRequester(apis.api, apis.secret, testnet)
         try:
             positions= await get_all_position(client)
         finally:
@@ -46,8 +48,8 @@ async def get_unrealised_pnl_user(user:User) -> float:
     return sum_pnl
 
 
-async def check_permissions(user:User) -> Dict:
-    flag=user.api and user.secret
+async def check_permissions(user:User,name:str=None) -> Dict:
+    apis=user.pick_api(name)
     readonly=False
     has_permission=False
     parentUid=0
@@ -55,9 +57,9 @@ async def check_permissions(user:User) -> Dict:
     ret_code=0
     ret_msg=None
     result={}
-    if flag:
+    if apis:
+        client:BybitRequester =BybitRequester(apis.api, apis.secret, testnet)
         try:
-            client:BybitRequester =BybitRequester(user.api, user.secret, testnet)
             result=await get_api_permissions(client)
         finally:
             await client.close()
@@ -71,10 +73,10 @@ async def check_permissions(user:User) -> Dict:
             parentUid=result.get('parentUid')
             userID=result.get('userID',0)
 
-    return {'status': readonly and has_permission and flag,
+    return {'status': readonly and has_permission and apis,
           'readonly': readonly,
           'permissions': has_permission,
-          'has_api_secret': flag,
+          'has_api_secret': apis is not None,
           'parentUid': parentUid,
           'result':result,
           'ret_code':ret_code,
@@ -84,6 +86,8 @@ async def check_permissions(user:User) -> Dict:
 
 
 async def check_bybit_uids(db:AsyncSession,user:User,data:dict):
+    if settings.TRADING_MODE=='manually':
+        return True
     bybit_uid=int(data.get('parentUid',0))
     bybit_sub_account_uid=int(data.get('userID',0))
     if bybit_uid:

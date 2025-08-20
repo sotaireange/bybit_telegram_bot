@@ -8,3 +8,4 @@ class Set(StatesGroup):
     BALANCE=State()
     API=State()
     SECRET=State()
+    NAME=State()

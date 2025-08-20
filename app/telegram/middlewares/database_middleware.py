@@ -10,6 +10,8 @@ from aiogram.dispatcher.flags import get_flag
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.common.config import settings
+
 from app.db.services import postgres_db as pdb,RedisClient
 from app.db.models import User
 
@@ -110,13 +112,34 @@ class SetValueMiddleware(BaseMiddleware):
                         text=msg('input_failure',value,min_limit,max_limit)
 
                         return await event.answer(text,reply_markup=cancel_menu())
+                    async with self.session_maker() as session:
+                        await pdb.update_user_fields(db=session, user_id=event.from_user.id,fields_dict={state_key:value})
+                elif state_key=='name':
+                    if not (value.isalpha() and value.isascii()):
+                        text=msg('input_api_name_error')
+                        return await event.answer(text,reply_markup=cancel_menu())
+                    async with self.session_maker() as session:
+                        api=await pdb.add_user_api(db=session,user_id=event.from_user.id,name=value)
+                        data['api']=api
+
+                else:
+                    async with self.session_maker() as session:
+                        name=(await state.get_data()).get('name')
+                        single_api_mode=False if settings.TRADING_MODE=='manually' else True
+                        if state_key=='api':
+                            await pdb.update_user_api(db=session, user_id=event.from_user.id,name=name,new_api=value,single_api_mode=single_api_mode)
+                        else:
+                            await pdb.update_user_api(db=session, user_id=event.from_user.id,name=name,new_secret=value,single_api_mode=single_api_mode)
+                        api=await pdb.get_user_one_api(db=session, user_id=event.from_user.id,name=name)
+
+                        data['api']=api
+
             except ValueError:
                 return await event.answer(msg('input_value_error'),reply_markup=cancel_menu())
 
             async with self.session_maker() as session:
                 user:User=await pdb.get_user(session,event.from_user.id)
                 data["user"] = user
-                await pdb.update_user_fields(db=session, user_id=event.from_user.id,fields_dict={state_key:value})
         else:
             logger.debug("Not state SET")
         return await handler(event, data)

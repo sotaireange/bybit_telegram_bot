@@ -68,20 +68,49 @@ async def menu_command(message: Message, state: FSMContext, redis_client: RedisC
     await message.answer(text, reply_markup=keyboards.main_menu(flag=run))
     await message.delete()
 
+
+#TODO: ЗДЕСЬ ПОДПРАВИТЬ
 @router.callback_query(lambda call: call.data=='stock_menu')
-async def stock_callback(call: CallbackQuery, state: FSMContext,user:User):
+async def stock_callback(call: CallbackQuery, state: FSMContext,user:User,db:AsyncSession):
+    text=msg.get_stock_text(user)
+    if settings.TRADING_MODE=='manually':
+        await call.message.edit_text(text,reply_markup=keyboards.new_stock_menu(user.apis))
+    else:
+        api=user.pick_api()
+        if not api:
+            api=await pdb.add_user_api(db=db,user_id=call.from_user.id,name='MAIN')
+        await call.message.edit_text(text,reply_markup=keyboards.stock_menu(name=api.name),parse_mode=ParseMode.HTML)
+
+
+@router.callback_query(lambda call: call.data.split('_')[0]=='stockapi')
+async def api_stock_callback(call: CallbackQuery, state:FSMContext,user:User,db:AsyncSession):
+    text=msg.get_stock_text(user)
+    name=call.data.split('_')[1]
+    api=user.pick_api(name)
+    await call.message.edit_text(text,reply_markup=keyboards.stock_menu(run=api.run,name=api.name),parse_mode=ParseMode.HTML)
+
+
+
+@router.callback_query(lambda call: call.data=='new_api_key')
+async def new_api_key_callback(call: CallbackQuery, state: FSMContext,user:User,db:AsyncSession):
     text=msg.get_stock_text(user)
     await call.message.edit_text(text,reply_markup=keyboards.stock_menu(),parse_mode=ParseMode.HTML)
 
 
-@router.callback_query(lambda call: call.data=='check_api')
+
+
+
+@router.callback_query(lambda call: call.data.split('_')[0]=='check_api')
 async def stock_check_callback(call: CallbackQuery, state: FSMContext,user:User,db:AsyncSession):
-    permissions=await check_permissions(user)
+    name=call.data.split('_')[1]
+    if name=='': return
+    permissions=await check_permissions(user,name)
     await check_bybit_uids(db,user,permissions)
     text= msg.get_permission_text(permissions)
-    await call.message.edit_text(text,reply_markup=keyboards.stock_menu())
+    api=(await pdb.get_user_one_api(db,user.id,name=name))
+    await call.message.edit_text(text,reply_markup=keyboards.stock_menu(run=api.run,name=api.name))
 
-
+#TODO: Изменить позиции по каждому
 @router.callback_query(lambda call: call.data=='positions')
 async def position_callback(call: CallbackQuery,user:User):
     positions=await get_user_positions(user)

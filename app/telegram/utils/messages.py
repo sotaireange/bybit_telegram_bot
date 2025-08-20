@@ -1,8 +1,8 @@
 import pandas as pd
-from typing import Dict,List
+from typing import Dict,List,Sequence
 import logging
 
-from app.db.models import User,TelegramMessage,NotificationType,PositionType,Run,Payment,Notification
+from app.db.models import User,TelegramMessage,NotificationType,PositionType,Run,Payment,Notification,UserAPI
 from app.common.config import settings
 from app.telegram.utils.sub_helper import get_sub_days
 from datetime import datetime,timedelta
@@ -41,6 +41,7 @@ class MessageBuilder:
         "secret_info": "Введите SECRET",
         "api_secret_success": "Вы успешно подключились в боту",
         "api_secret_fail": "Упс, что то пошло не так",
+        "api_name":"Ввведите имя API ключа. Возможно только английские буквы без различных символов. ABC",
         "settings_title": "Настройки:",
         "input_setting": "Укажите {0}.\nВведите значение от {1} до {2}",
         "input_failure": (
@@ -48,6 +49,7 @@ class MessageBuilder:
             "Вы ввели {0}\n"
             "Допустимые значения от {1} до {2}"
         ),
+        "input_api_name_error": "Ввели недопустимое имя ключа. Только английские буквы. Без различных символов.",
         "input_success": "Вы изменили {0}.\nНовое значение {1}",
         "value_error": "Ошибка: введите числовое значение.\n",
         "user_when_start": "Вы запустили бота",
@@ -222,10 +224,11 @@ class MessageBuilder:
 
     @classmethod
     def get_stock_text(cls, user: User) -> str:
-        api_text = user.api if user.api else 'Не указан'
-        secret_text = user.secret if user.secret else 'Не указан'
-        text=f'API - {api_text}\nSecret Key - {secret_text}\n'
-        if not user.api or not user.secret:
+        apis=user.apis
+        text=''
+        for api in apis:
+            text=f'Api - {api.api} Secret - {api.secret} {'ON' if api.run else "OFF"}'
+        if not apis:
             text+= cls.templates['api_secret_info']
         return text
 
@@ -291,6 +294,8 @@ class MessageBuilder:
         return text
 
 
+    def get_user_apis_text(self,apis:Sequence[UserAPI]) -> str:
+        return f'Ключей: {len(apis)}'
 
 
 msg=MessageBuilder()
