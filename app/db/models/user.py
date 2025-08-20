@@ -22,7 +22,7 @@ class UserAPI(Base):
             "api": self.api,
             "secret": self.secret,
             "run": self.run
-        }vzzz
+        }
 
     def __repr__(self):
         return f"<UserAPI(user_id={self.user_id}, api=****)>"
