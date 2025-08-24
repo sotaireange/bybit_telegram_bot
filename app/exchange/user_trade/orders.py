@@ -70,7 +70,8 @@ class HedgePositionManager:
 
     async def set_main_position(
             self,
-            position_data: Dict[str,str]
+            position_data: Dict[str,str],
+            order_id:Optional[str]=None,
     ) -> MainPosition:
         coin = position_data.get("symbol")
         position_idx = PositionIdx(safe_float(position_data.get("positionIdx", 0)))
@@ -103,7 +104,8 @@ class HedgePositionManager:
             tracking_price=tracking_price,
             updated_time=updated_time,
             position_type=PositionType.MAIN,
-            leverage=self.settings.leverage
+            leverage=self.settings.leverage,
+            take_stop_orderid=order_id
         )
         self.positions[coin].main_position = position
 
@@ -115,7 +117,8 @@ class HedgePositionManager:
 
     async def set_secondary_position(
             self,
-            position_data: Dict[str,str]
+            position_data: Dict[str,str],
+            order_id:Optional[str]=None
     ) -> SecondaryPosition:
         coin = position_data.get("symbol")
         position_idx = PositionIdx(safe_float(position_data.get("positionIdx", 0)))
@@ -140,7 +143,8 @@ class HedgePositionManager:
                     updated_time=updated_time,
                     stop_loss_price=stop_loss,
                     position_type=PositionType.HEDGE,
-                    leverage=self.settings.leverage
+                    leverage=self.settings.leverage,
+                    take_stop_orderid=order_id
 
                 )
                 self.positions[coin].secondary_position = position
@@ -151,7 +155,10 @@ class HedgePositionManager:
                 pass
 
 
-
+    async def update_main_position_take_profit(self, coin: str, take_profit_price: float):
+        if coin in self.positions and self.positions[coin].main_position:
+            self.positions[coin].main_position.take_profit_price = take_profit_price
+            await self.save_position_to_redis(coin)
 
 
 

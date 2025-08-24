@@ -22,7 +22,7 @@ class Position:
     updated_time:str
     position_type: PositionType
     leverage:float
-
+    take_stop_orderid:Optional[str]
 
     def to_dict(self):
         result = asdict(self)

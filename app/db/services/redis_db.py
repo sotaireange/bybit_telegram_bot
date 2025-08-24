@@ -103,7 +103,7 @@ class RedisClient:
         res = await self.redis.hgetall(self.COIN_INFO_KEY)
         return {k: json.loads(v) for k, v in res.items()}
 
-    async def get_coin_info(self,symbol:str) -> dict:
+    async def get_coin_info(self,symbol:Hashable) -> dict:
         res = await self.redis.hget(self.COIN_INFO_KEY,symbol)
         return {symbol:json.loads(res)}
 

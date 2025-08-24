@@ -68,7 +68,7 @@ async def change_tp_price(
         'category': 'linear',
         'symbol': coin,
         'orderId': order_id,
-        'takeProfit': str(tp_price)
+        'triggerPrice': str(tp_price)
     }
     response={}
     try:
@@ -154,6 +154,7 @@ async def get_order(bybit_requester: BybitRequester,
         endpoint='/v5/order/history'
     else:
         endpoint='/v5/order/realtime'
+        data['openOnly']=0
 
     response=[{}]
 
