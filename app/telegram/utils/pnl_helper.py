@@ -4,7 +4,7 @@ from itertools import chain
 
 from datetime import datetime
 
-from typing import Dict, List,Union,Sequence
+from typing import Dict, List,Union,Sequence,Optional
 
 from app.db.models import User
 from app.exchange.bybit_async import BybitRequester, get_pnl_from_chunks
@@ -23,10 +23,10 @@ async def get_pnl_result_from_chunk(bybit_requester:BybitRequester, chunks:List[
     return result
 
 
-async def get_user_pnl(user: User, use_last_sub_day:bool=False,only_sum=False) -> Union[pd.DataFrame,float]:
+async def get_user_pnl(user: User, use_last_sub_day:bool=False,only_sum:bool=False, api_name: Optional[str]=None) -> Union[pd.DataFrame,float]: #TODO: Сделать выбор
     df=pd.DataFrame()
     client=None
-    apis=user.get_api()
+    apis=user.pick_api(api=api_name)
     if not (apis): return df if not only_sum else 0
     try:
         client=BybitRequester(apis.api, apis.secret, testnet)
@@ -54,7 +54,7 @@ async def get_user_pnl(user: User, use_last_sub_day:bool=False,only_sum=False) -
         return df if not only_sum else df['closedPnl'].sum() if len(df)>0 else 0
 
 
-async def get_all_user_pnl(users: Sequence[User]) -> Dict[User,float]:
+async def get_all_user_pnl(users: Sequence[User]) -> Dict[User,float]: #TODO: Сделать здесь возможность перебора по всем pnls
     tasks=[(get_user_pnl(user,True,only_sum=True)) for user in users]
     results=await asyncio.gather(*tasks)
     # pnl_users={user.id:results[i] for i,user in enumerate(users)}

@@ -44,7 +44,8 @@ async def run(call: CallbackQuery, state: FSMContext,redis_client:RedisClient,us
 
     status=await check_permissions(user)
     user_id=call.from_user.id
-    await check_bybit_uids(db,user,status)
+    if settings.TRADING_MODE!='manually' or (user.id not in settings.ADMIN_IDS):
+        await check_bybit_uids(db,user,status)
     user=await pdb.get_user(db,user_id)
     if not status.get('status',0):
         text=msg.get_permission_text(status)
@@ -53,7 +54,7 @@ async def run(call: CallbackQuery, state: FSMContext,redis_client:RedisClient,us
 
     await redis_client.set_is_run(user_id,Run.OFF)
 
-    if sub_is_over(user) and settings.TRADING_MODE!='manually':
+    if sub_is_over(user) and settings.TRADING_MODE!='manually' or not (user.id in settings.ADMIN_IDS):
         text=msg('sub_is_over')
         pnl=await get_user_pnl(user,True,True)
         if pnl<10:
@@ -61,12 +62,12 @@ async def run(call: CallbackQuery, state: FSMContext,redis_client:RedisClient,us
         else:
             await call.message.edit_text(text=text,reply_markup=keyboards.subs_menu())
             return
-    if user.bybit_uid is None:
+    if user.bybit_uid is None and settings.TRADING_MODE!='manually' or not (user.id in settings.ADMIN_IDS):
         text=msg('bybit_uid_is_bad')
         await call.message.edit_text(text=text,reply_markup=keyboards.main_menu(Run.OFF))
         return
 
-    if not user.bybit_sub_account_uid:
+    if not user.bybit_sub_account_uid and (settings.TRADING_MODE!='manually' or not (user.id in settings.ADMIN_IDS)):
         text=msg('get_bybit_uid_error')
         await call.message.edit_text(text=text,reply_markup=keyboards.main_menu(Run.OFF))
         return
@@ -92,7 +93,8 @@ async def unrun(call: CallbackQuery, state: FSMContext,redis_client:RedisClient,
 
     status=await check_permissions(user)
     user_id=call.from_user.id
-    await check_bybit_uids(db,user,status)
+    if settings.TRADING_MODE!='manually' or not (user.id in settings.ADMIN_IDS):
+        await check_bybit_uids(db,user,status)
     user=await pdb.get_user(db,user_id)
     if not status.get('status',0):
         text=msg.get_permission_text(status)
@@ -100,15 +102,16 @@ async def unrun(call: CallbackQuery, state: FSMContext,redis_client:RedisClient,
         return
     text= msg.get_menu_text(user, Run.HEDGE)
 
-    if user.bybit_uid is None:
+    if user.bybit_uid is None and (settings.TRADING_MODE!='manually' or not (user.id in settings.ADMIN_IDS)):
         text=msg('bybit_uid_is_bad')
         await call.message.edit_text(text=text,reply_markup=keyboards.main_menu(Run.OFF))
         return
 
-    if not user.bybit_sub_account_uid:
-        text=msg('get_bybit_uid_error')('')
+    if not user.bybit_sub_account_uid and (settings.TRADING_MODE!='manually' or not (user.id in settings.ADMIN_IDS)):
+        text=msg('get_bybit_uid_error')
         await call.message.edit_text(text=text,reply_markup=keyboards.main_menu(Run.OFF))
         return
+
     await call.message.edit_text(text=text,reply_markup=keyboards.main_menu(Run.HEDGE))
 
     task=await Task.get_user_task(db,user_id)

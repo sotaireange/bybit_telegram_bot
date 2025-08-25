@@ -21,7 +21,7 @@ def main_menu(flag:Run=Run.OFF):
 
     #markup.row(InlineKeyboardButton(text="Настройка",callback_data="settings")) #Была отключена возможность настраивать торговлю
     markup.row(InlineKeyboardButton(text="Настройка биржи",callback_data="stock_menu"))
-    markup.row(InlineKeyboardButton(text="Позиции",callback_data="positions"))
+    markup.row(InlineKeyboardButton(text="Позиции",callback_data="all_positions"))
     markup.row(InlineKeyboardButton(text="Уведомления",callback_data="notification"))
     if settings.TRADING_MODE!='manually':
         markup.row(InlineKeyboardButton(text="Подписка",callback_data="subs_menu"))
@@ -47,21 +47,20 @@ def settings_menu():
 
 
 
-#TODO: Наверное здесь добавить имя API ключа, при вызове этой  меню
-def stock_menu(run:bool=True,name:str=None):
+def stock_menu(run:bool=True,name:str=None,id:int=None):
     markup= InlineKeyboardBuilder()
-    markup.row(InlineKeyboardButton(text="Проверить API",callback_data=f"check_api_{name}"))
+    markup.row(InlineKeyboardButton(text="Проверить API",callback_data=f"check_{name}"))
     markup.row(InlineKeyboardButton(text="Api Key",callback_data=f"api_{name}"))
     if name:
         markup.row(InlineKeyboardButton(text="Api Secret",callback_data=f"secret_{name}"))
-    if settings.TRADING_MODE=='manually':
+    if settings.TRADING_MODE=='manually' or (id in settings.ADMIN_IDS):
         markup.row(InlineKeyboardButton(text="Отключить" if run else 'Включить' ,callback_data=f"switch_{name}"))
         markup.row(InlineKeyboardButton(text="Удалить",callback_data=f"delete_{name}"))
     markup.row(InlineKeyboardButton(text="Назад",callback_data=f"main_menu"))
     return markup.as_markup()
 
 
-#TODO: нужно подключить несколько ключей,чтобы не удалять все , подытожишь
+#
 
 def new_stock_menu(apis:Sequence[UserAPI]):
     markup= InlineKeyboardBuilder()
@@ -72,9 +71,16 @@ def new_stock_menu(apis:Sequence[UserAPI]):
     return markup.as_markup()
 
 
-def position_update():
+def all_positions(apis:Sequence[UserAPI]):
     markup= InlineKeyboardBuilder()
-    markup.row(InlineKeyboardButton(text="Обновить",callback_data="positions"))
+    for api in apis:
+        markup.row(InlineKeyboardButton(text=api.name,callback_data=f"position_{api.name}"))
+    markup.row(InlineKeyboardButton(text="Назад",callback_data="main_menu"))
+    return markup.as_markup()
+
+def position_update(api_name:str):
+    markup= InlineKeyboardBuilder()
+    markup.row(InlineKeyboardButton(text="Обновить",callback_data=f"position_{api_name}"))
     markup.row(InlineKeyboardButton(text="Назад",callback_data="main_menu"))
     return markup.as_markup()
 

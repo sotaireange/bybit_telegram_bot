@@ -106,7 +106,7 @@ class SetValueMiddleware(BaseMiddleware):
             state_key = current_state[1]
             min_limit, max_limit = getattr(Limit, state_key.upper(), (0,0))
             try:
-                if state_key not in ['api','secret']:
+                if state_key not in ['api','secret','name']:
                     value = float(value)
                     if value > max_limit or value < min_limit:
                         text=msg('input_failure',value,min_limit,max_limit)
@@ -134,8 +134,8 @@ class SetValueMiddleware(BaseMiddleware):
 
                         data['api']=api
 
-            except ValueError:
-                return await event.answer(msg('input_value_error'),reply_markup=cancel_menu())
+            except ValueError as e:
+                return await event.answer(e,reply_markup=cancel_menu())
 
             async with self.session_maker() as session:
                 user:User=await pdb.get_user(session,event.from_user.id)

@@ -13,8 +13,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 testnet=False
 
 
-async def close_all_order_user(user:User):
-    apis = user.get_api()
+async def close_all_order_user(user:User,api_name:str=None):
+    apis = user.get_api(api_name)
     client:BybitRequester =BybitRequester(apis.api, apis.secret, False)
     try:
         positions = await get_all_position(client)
@@ -28,9 +28,9 @@ async def close_all_order_user(user:User):
     return positions
 
 
-async def get_user_positions(user:User) -> List[Dict]:
+async def get_user_positions(user:User,api_name:str=None) -> List[Dict]:
     positions=[]
-    apis=user.pick_api()
+    apis=user.pick_api(api_name)
     if apis:
         client:BybitRequester =BybitRequester(apis.api, apis.secret, testnet)
         try:
@@ -48,8 +48,8 @@ async def get_unrealised_pnl_user(user:User) -> float:
     return sum_pnl
 
 
-async def check_permissions(user:User,name:str=None) -> Dict:
-    apis=user.pick_api(name)
+async def check_permissions(user:User,api_name:str=None) -> Dict:
+    apis=user.pick_api(api_name)
     readonly=False
     has_permission=False
     parentUid=0

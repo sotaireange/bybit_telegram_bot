@@ -10,6 +10,9 @@ from aiogram.dispatcher.flags import get_flag
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+
+
+from app.common.config import settings
 from app.db.services import postgres_db as pdb,RedisClient
 from app.db.models import User,Payment
 
@@ -50,7 +53,7 @@ class PaymentAmountMiddleware(BaseMiddleware):
                 amount_to_pay=round(df_pnl['closedPnl'].sum()/2,2) if len(df_pnl) else 0
             else:
                 amount_to_pay=0
-        if amount_to_pay <10:
+        if amount_to_pay <10 or user.id in settings.ADMIN_IDS:
             async with self.sessionmaker() as session:
                 time=int(datetime.now(timezone.utc).timestamp())
                 user=await pdb.extend_subscription(session,user_id=user.id,days=1)

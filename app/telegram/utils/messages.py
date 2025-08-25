@@ -134,43 +134,43 @@ class MessageBuilder:
 
     @classmethod
     def get_position_text(cls,positions: List[Dict]):
-        if len(positions)==0:
+        if len(positions) == 0:
             return "Позиций нет"
-        df=pd.DataFrame(positions)
-        df['updatedTime']=df['updatedTime'].astype(int)
-        df.sort_values(by=['symbol','updatedTime'],inplace=True,ascending=[False,True])
 
-        last_symbol=''
-        text = f"Открытых позиций: {len(positions)}\n"
+        df = pd.DataFrame(positions)
+        df = df.replace('', None)
+        df['updatedTime'] = df['updatedTime'].astype(int)
+        df.sort_values(by=['symbol', 'updatedTime'], inplace=True, ascending=[False, True])
+        df['unrealisedPnl'] = df['unrealisedPnl'].astype('float64')
+        df['takeProfit'] = df['takeProfit'].astype('float64')
+        df['stopLoss'] = df['stopLoss'].astype('float64')
+
+        grouped = df.groupby('symbol')
+        text = (f"Открытых позиций: {len(positions)}\n"
+                f"Pnl: {df['unrealisedPnl'].sum():.2f}")
         text += "<pre>\n"
-        text += (f"{'COIN':<9} {'Размер':>8}" #{'Цена':>9}"
-                 f" {'Закрытие':>10} {'PNL':>8}\n")
+        text += f"{'COIN':<9} {'PNL(M)':>7} {'PNL(H)':>7}\n"
 
-        for idx,position in df.iterrows():
-            if not position.any(): continue
-            symbol = position['symbol'][:-4]
-            side = position['side']
-            position_value = cls.safe_round(position['positionValue'])
-            leverage= cls.safe_round(position['leverage'])
-            position_size=round(position_value/leverage,2)
-            #mark_price = cls.safe_round(position.get('markPrice'))
-            take_profit_value = position['takeProfit'] or position['stopLoss']
-            take_profit_str = cls.format_tp(take_profit_value)
-            unrealised_pnl = cls.safe_round(position['unrealisedPnl'])
+        for idx, position in grouped:
+            symbol = position['symbol'].iloc[0][:-4]
+            main_positions = position[position['takeProfit'].notna()]
+            hedge_positions = position[position['stopLoss'].notna()]
+
+            if not main_positions.empty:
+                side = main_positions['side'].iloc[0]
+                unrealised_pnl_main = main_positions['unrealisedPnl'].iloc[0]
+            else:
+                side = 'Unknown'
+                unrealised_pnl_main = 0.0
+
+            if not hedge_positions.empty:
+                unrealised_pnl_hedge = hedge_positions['unrealisedPnl'].iloc[0]
+            else:
+                unrealised_pnl_hedge = 0.0
+
             side_icon = '🟢' if side == 'Buy' else '🔴'
 
-            if symbol != last_symbol:
-                pos_type = "(M)"
-            else:
-                pos_type = "(H)"
-
-
-            coin_label = f"{side_icon}{pos_type}{symbol}"
-
-            text += (f"{coin_label:<9} {position_size:>6.2f}$" #{mark_price:>9.2f}$ "
-                     f"{take_profit_str:>10}$ {unrealised_pnl:>8.2f}$\n")
-            last_symbol = symbol
-
+            text += f"{side_icon}{symbol:<8} {unrealised_pnl_main:>7.2f}$ {unrealised_pnl_hedge:>7.2f}$\n"
 
         text += "</pre>"
         return text
@@ -189,7 +189,6 @@ class MessageBuilder:
 
     @classmethod
     def get_pnl_text(cls,pnls:pd.DataFrame) -> str:
-        text='Профит:\n'
         if len(pnls):
             text=f'Общий за 3 месяца: {pnls['closedPnl'].sum()}$\n'
             month_now=datetime.now().month
@@ -225,11 +224,15 @@ class MessageBuilder:
     @classmethod
     def get_stock_text(cls, user: User) -> str:
         apis=user.apis
-        text=''
+        text=f'Всего ключей {apis}'
         for api in apis:
-            text=f'Api - {api.api} Secret - {api.secret} {'ON' if api.run else "OFF"}'
+            text=f'{api.name} {'ON' if api.run else "OFF"}'
         if not apis:
             text+= cls.templates['api_secret_info']
+        return text
+
+    def get_api_text(self,api:UserAPI):
+        text=f'Api {api.api} Secret {api.secret} {'ON' if api.run else "OFF"}'
         return text
 
     @classmethod
@@ -297,5 +300,10 @@ class MessageBuilder:
     def get_user_apis_text(self,apis:Sequence[UserAPI]) -> str:
         return f'Ключей: {len(apis)}'
 
+    def get_all_positions_text(self,apis:Sequence[UserAPI]) -> str:
+        text=f'Всего ключей: {len(apis)}\n'
+        for api in apis:
+            text+=f'{api.name}\n'
+        return text
 
 msg=MessageBuilder()

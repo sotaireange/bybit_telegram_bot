@@ -69,11 +69,10 @@ async def menu_command(message: Message, state: FSMContext, redis_client: RedisC
     await message.delete()
 
 
-#TODO: ЗДЕСЬ ПОДПРАВИТЬ
 @router.callback_query(lambda call: call.data=='stock_menu')
 async def stock_callback(call: CallbackQuery, state: FSMContext,user:User,db:AsyncSession):
     text=msg.get_stock_text(user)
-    if settings.TRADING_MODE=='manually':
+    if settings.TRADING_MODE=='manually' or (user.id in settings.ADMIN_IDS):
         await call.message.edit_text(text,reply_markup=keyboards.new_stock_menu(user.apis))
     else:
         api=user.pick_api()
@@ -84,23 +83,22 @@ async def stock_callback(call: CallbackQuery, state: FSMContext,user:User,db:Asy
 
 @router.callback_query(lambda call: call.data.split('_')[0]=='stockapi')
 async def api_stock_callback(call: CallbackQuery, state:FSMContext,user:User,db:AsyncSession):
-    text=msg.get_stock_text(user)
     name=call.data.split('_')[1]
     api=user.pick_api(name)
+    logger.info(f'Api - {api} name - {name}')
+    text=msg.get_api_text(api)
     await call.message.edit_text(text,reply_markup=keyboards.stock_menu(run=api.run,name=api.name),parse_mode=ParseMode.HTML)
 
 
 
-@router.callback_query(lambda call: call.data=='new_api_key')
-async def new_api_key_callback(call: CallbackQuery, state: FSMContext,user:User,db:AsyncSession):
-    text=msg.get_stock_text(user)
-    await call.message.edit_text(text,reply_markup=keyboards.stock_menu(),parse_mode=ParseMode.HTML)
+# @router.callback_query(lambda call: call.data=='new_api_key')
+# async def new_api_key_callback(call: CallbackQuery, state: FSMContext,user:User,db:AsyncSession):
+#     text=msg.get_stock_text(user)
+#     await call.message.edit_text(text,reply_markup=keyboards.stock_menu(),parse_mode=ParseMode.HTML)
 
 
 
-
-
-@router.callback_query(lambda call: call.data.split('_')[0]=='check_api')
+@router.callback_query(lambda call: call.data.split('_')[0]=='check')
 async def stock_check_callback(call: CallbackQuery, state: FSMContext,user:User,db:AsyncSession):
     name=call.data.split('_')[1]
     if name=='': return
@@ -110,25 +108,33 @@ async def stock_check_callback(call: CallbackQuery, state: FSMContext,user:User,
     api=(await pdb.get_user_one_api(db,user.id,name=name))
     await call.message.edit_text(text,reply_markup=keyboards.stock_menu(run=api.run,name=api.name))
 
-#TODO: Изменить позиции по каждому
-@router.callback_query(lambda call: call.data=='positions')
+
+@router.callback_query(lambda call: call.data.split('_')[0]=='position' or
+                                    (call.data=='all_positions' and
+                                     not (settings.TRADING_MODE=='manually' or (call.from_user.id in settings.ADMIN_IDS))))
 async def position_callback(call: CallbackQuery,user:User):
-    positions=await get_user_positions(user)
-    pnl=await get_user_pnl(user)
+    api_name=call.data.split('_')[1]
+    if api_name=='positions': api_name=None
+    positions=await get_user_positions(user,api_name)
+    pnl=await get_user_pnl(user,api_name=api_name)
     text=msg.get_pnl_text(pnl)+msg.get_position_text(positions)
     try:
-        await call.message.edit_text(text,reply_markup=keyboards.position_update(),parse_mode='HTML')
-    except:
-        pass
+        await call.message.edit_text(text,reply_markup=keyboards.position_update(api_name),parse_mode='HTML')
+    except Exception as e:
+        logger.error(f'Error when get positions\n {e}')
+
+
+@router.callback_query(lambda call: call.data=='all_positions')
+async def all_position_callback(call: CallbackQuery,user:User):
+    text=msg.get_all_positions_text(user.apis)
+    await call.message.edit_text(text,reply_markup=keyboards.all_positions(user.apis))
+
 
 
 @router.message(Command('positions'))
 async def positions_command(message: Message, user: User):
-    positions = await get_user_positions(user)
-    pnl = await get_user_pnl(user)
-    text = msg.get_pnl_text(pnl) + msg.get_position_text(positions)
-    await message.answer(text, reply_markup=keyboards.position_update(), parse_mode='HTML')
-    await message.delete()
+    text=msg.get_all_positions_text(user.apis)
+    await message.edit_text(text,reply_markup=keyboards.all_positions(user.apis))
 
 
 @router.callback_query(lambda call: call.data=='notification')

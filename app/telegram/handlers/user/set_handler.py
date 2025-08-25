@@ -61,10 +61,9 @@ async def change_notification_level(call: CallbackQuery, state: FSMContext,db:As
     await call.message.edit_text(text=text,reply_markup=keyboards.notification_menu(notification))
 
 
-@router.callback_query(lambda call: call.data.split('_')[0]=='name')
-async def set_api_state(call: CallbackQuery, state: FSMContext):
-    data,api=call.data.split('_')
-    await state.set_state(f'Set:{data.upper()}')
+@router.callback_query(lambda call: call.data=='new_api_key')
+async def set_name_api_state(call: CallbackQuery, state: FSMContext):
+    await state.set_state(f'Set:NAME')
     text=msg('api_name')
     await call.message.edit_text(text=text,reply_markup=keyboards.cancel_menu(),parse_mode=ParseMode.HTML)
 

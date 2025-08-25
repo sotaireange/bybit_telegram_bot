@@ -31,7 +31,7 @@ class BybitRequester:
         """Ensure that the session is open and create a new one if needed."""
         async with self._session_lock:
             if self._session is None or self._session.closed:
-                logger.info("Creating new aiohttp ClientSession")
+                # logger.info("Creating new aiohttp ClientSession")
                 self._session = aiohttp.ClientSession()
 
     @property

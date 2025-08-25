@@ -268,11 +268,11 @@ async def get_mark_price(bybit_requester:BybitRequester,
     return float(result[0][4]) if result else 0
 
 
-async def get_all_position(bybit_requester:BybitRequester) -> List[Dict]:
+async def get_all_position(bybit_requester:BybitRequester) -> List[Dict]: #TODO: Исправить это , нужнно использовать paginated
     data = {
         'category': 'linear',
         'settleCoin':'USDT',
-        'limit':200
+        'limit':500
     }
 
     response=[]

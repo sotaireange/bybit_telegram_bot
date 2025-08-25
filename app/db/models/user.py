@@ -51,10 +51,10 @@ class User(Base):
     apis = relationship("UserAPI", back_populates="user", cascade="all, delete-orphan")
 
 
-    def get_api(self, api_key: str | None = None) -> UserAPI | None:
+    def get_api(self, api_name: str | None = None) -> UserAPI | None:
         """Возвращает UserAPI по ключу или единственный, если он один."""
-        if api_key is not None:
-            return next((a for a in self.apis if a.api == api_key), None)
+        if api_name is not None:
+            return next((a for a in self.apis if a.name == api_name), None)
         if len(self.apis) == 1:
             return self.apis[0]
         return None
@@ -63,7 +63,7 @@ class User(Base):
         """Возвращает API по ключу или первый из списка, если ключ не задан."""
         if not self.apis:
             return None
-        return self.get_api(api) if api else self.apis[0] if self.apis else None
+        return self.get_api(api) if api else self.apis[0]
 
 
     def to_dict(self):
