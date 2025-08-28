@@ -60,7 +60,7 @@ class TradeBot:
         await self.broker.start()
 
     def set_client(self,testnet:bool = False):
-        self.client:BybitRequester=BybitRequester(self.api.api,self.api.secret,testnet=testnНet)
+        self.client:BybitRequester=BybitRequester(self.api.api,self.api.secret,testnet=testnet)
 
 
     async def update_settings(self):
@@ -428,7 +428,7 @@ class TradeBot:
                             await self.close_worst_pnl_position()
                         await asyncio.sleep(60)
                         continue
-                    if settings.TRADING_MODE=='manually':
+                    if settings.TRADING_MODE=='manually': #TODO: ПОМЕНЯТЬ MANUALLY ДЛЯ ВСЕХ КЛЮЧЕЙ
                         coins=pd.DataFrame.from_dict(await self.redis_client.get_coins_with_delete_by_user(user_id=self.user_id),orient='index')
                     else:
                         coins=pd.DataFrame.from_dict(await self.redis_client.get_coins(),orient='index')
