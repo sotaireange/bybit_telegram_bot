@@ -17,10 +17,16 @@ logger = logging.getLogger('trading')
 
 
 async def trading_one_api_key(redis_client:RedisClient,user_id:int,api: UserAPI):
+    bot=None
     if api.run:
-        bot=TradeBot(user_id,api,redis_client)
-        await bot.initialize()
         try:
+            bot=TradeBot(user_id,api,redis_client)
+            await bot.initialize()
+        except Exception as e:
+            logger.error(f'Exceptions {e}')
+        try:
+            if not bot:
+                return
             while bot.is_running!=Run.OFF:
                 try:
                     logger.debug('Start Trade')
