@@ -1,5 +1,5 @@
 from typing import Sequence
-from app.db.models import User
+from app.db.models import User,UserAPI
 
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
@@ -27,6 +27,14 @@ def user_menu(user:User):
     markup.row(InlineKeyboardButton(text="Список ордеров",callback_data=f"user_orders:{user.id}"))
     markup.row(InlineKeyboardButton(text=f'Остановить всю торговлю',callback_data=f"user_stop:{user.id}"))
     markup.row(InlineKeyboardButton(text=f'Закрыть все сделки',callback_data=f"user_exit:{user.id}"))
+    markup.row(InlineKeyboardButton(text="Назад",callback_data="admin_menu"))
+    return markup.as_markup()
+
+
+def user_api_menu(user:User):
+    markup = InlineKeyboardMarkup()
+    for api in user.apis:
+        markup.row(InlineKeyboardButton(text=f"Позиция {api.name}",callback_data=f"user_position:{user.id}:{api.name}"))
     markup.row(InlineKeyboardButton(text="Назад",callback_data="admin_menu"))
     return markup.as_markup()
 

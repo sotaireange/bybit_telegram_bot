@@ -60,7 +60,7 @@ class TradeBot:
         await self.broker.start()
 
     def set_client(self,testnet:bool = False):
-        self.client:BybitRequester=BybitRequester(self.api.api,self.api.secret,testnet=testnet)
+        self.client:BybitRequester=BybitRequester(self.api.api,self.api.secret,testnet=testnНet)
 
 
     async def update_settings(self):
@@ -68,7 +68,7 @@ class TradeBot:
 
 
     async def init_hp_manager(self):
-        self.hp_manager=HedgePositionManager(self.user_id,self.redis,self.settings,self.api)
+        self.hp_manager=HedgePositionManager(self.user_id,self.redis,self.settings)
         await self.hp_manager.load_from_redis()
 
 

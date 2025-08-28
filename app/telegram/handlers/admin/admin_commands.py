@@ -113,11 +113,23 @@ async def admin_settings_callback(call:CallbackQuery, db: AsyncSession,redis_cli
     await call.bot.send_message(chat_id=user_id,text=text_user)
 
 
+@router.callback_query(lambda call: call.data.split('_')[0]=='user_position')
+async def user_position_callback(call: CallbackQuery,db:AsyncSession):
+    _,user_id,api_name=call.data.split(':')
+    user= await pdb.get_user(db,user_id)
+    positions=await get_user_positions(user,api_name)
+    pnl=await get_user_pnl(user,api_name=api_name)
+    text=msg.get_pnl_text(pnl)+msg.get_position_text(positions)
+    try:
+        await call.message.edit_text(text,reply_markup=kbrd.user_api_menu(user),parse_mode='HTML')
+    except:
+        pass
+
+
 @router.callback_query(lambda call: call.data.split(':')[0]=='user_orders')
 async def admin_user_orders_callback(call:CallbackQuery,db: AsyncSession):
     user_id=int(call.data.split(':')[1])
     user= await pdb.get_user(db,user_id)
-    positions=await get_user_positions(user)
-    text=msg.get_position_text(positions)
-    await call.message.edit_text(text,reply_markup=kbrd.user_menu(user),parse_mode='HTML')
+    text=msg.get_all_positions_text(user.apis)
+    await call.message.edit_text(text,reply_markup=kbrd.user_api_menu(user),parse_mode='HTML')
 

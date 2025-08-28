@@ -22,7 +22,6 @@ class Position:
     updated_time:str
     position_type: PositionType
     leverage:float
-    take_stop_orderid:Optional[str]
 
     def to_dict(self):
         result = asdict(self)
@@ -39,6 +38,7 @@ class Position:
 class MainPosition(Position):
     take_profit_price: float
     tracking_price: Optional[float] = None
+    take_stop_orderid:Optional[str]=None
 
     def to_dict(self):
         result = asdict(self)
@@ -57,6 +57,7 @@ class MainPosition(Position):
 @dataclass
 class SecondaryPosition(Position):
     stop_loss_price: float
+    take_stop_orderid:Optional[str]=None
 
     def to_dict(self):
         result = asdict(self)

@@ -28,7 +28,7 @@ class AdminMsgBuilder(MessageBuilder):
 
     @classmethod
     def get_admin_menu_text(cls) -> str:
-        text='Потом придумаю'
+        text='Админ меню'
         return text
 
     @classmethod
