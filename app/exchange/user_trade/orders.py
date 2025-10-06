@@ -2,7 +2,7 @@ import json
 from typing import Dict, Optional, Hashable, List, Union
 from dataclasses import dataclass, asdict
 from enum import Enum
-
+import datetime as dt
 import pandas as pd
 from redis.asyncio import Redis
 from .utils import safe_float
@@ -12,11 +12,11 @@ from app.db.models import HedgePosition,MainPosition,SecondaryPosition,PositionI
 
 
 
-class HedgePositionManager:
-    def __init__(self, user_id: int, redis: Redis, settings: TradeSettings):
+class HedgePositionManager: #TODO: Это затрагивается
+    def __init__(self, user_id: int, redis: Redis, settings: TradeSettings,api_name:str="MAIN"):
         self.user_id = user_id
         self.redis = redis
-        self.redis_key = f"hedge_positions:{self.user_id}"#:{api.name}"
+        self.redis_key = f"hedge_positions:{self.user_id}_{api_name}"
         self.positions: Dict[str, HedgePosition] = {}
         self.settings = settings
 
@@ -45,6 +45,13 @@ class HedgePositionManager:
         if coin in self.positions and self.positions[coin].main_position:
             return self.positions[coin].main_position.tracking_price
         return None
+
+    def should_close_orders(self, coin: str) -> bool:
+        position=self.positions.get(coin)
+        entry_timestamp=position.entry_timestamp
+        time_now=pd.Timestamp(dt.datetime.now(dt.UTC))
+        return time_now>entry_timestamp
+
 
     def should_create_hedge(self, coin: str, current_price: float) -> bool:
         position=self.positions.get(coin)
@@ -85,7 +92,8 @@ class HedgePositionManager:
 
 
         if coin not in self.positions:
-            self.positions[coin] = HedgePosition(coin=coin)
+            time_now=pd.Timestamp(dt.datetime.now(dt.UTC))
+            self.positions[coin] = HedgePosition(coin=coin,entry_timestamp=time_now)
 
 
         if position_idx==PositionIdx.LONG:
@@ -143,7 +151,7 @@ class HedgePositionManager:
                     stop_loss_price=stop_loss,
                     position_type=PositionType.HEDGE,
                     leverage=self.settings.leverage,
-                    take_stop_orderid=order_id
+                    stop_loss_orderid=order_id
 
                 )
                 self.positions[coin].secondary_position = position
@@ -189,8 +197,6 @@ class HedgePositionManager:
         df=pd.DataFrame(positions)
         df['updatedTime']=df['updatedTime'].astype(int)
         df.sort_values(by=['symbol','updatedTime'],inplace=True,ascending=[False,True])
-
-
 
 
 

@@ -135,6 +135,8 @@ class RedisClient:
                 continue
         return result
 
+    async def clear_redis_position(self,user_id: int,api_name:str):
+        await self.redis.delete(f'hedge_positions:{user_id}_{api_name}')
 
     PRICES='prices'
 
@@ -151,3 +153,4 @@ class RedisClient:
             value=0.0
         finally:
             return value
+

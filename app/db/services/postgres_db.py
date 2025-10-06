@@ -14,9 +14,11 @@ from app.db.models import User,Notification,UserAPI
 
 logger=logging.getLogger('system')
 
-async def get_all_users(db:AsyncSession) -> Sequence[User]:
-    result = await db.execute(select(User))
+
+async def get_all_users(db: AsyncSession) -> Sequence[User]:
+    result = await db.execute(select(User).options(selectinload(User.apis)))
     return result.scalars().all()
+
 async def get_user(db: AsyncSession, user_id: int) -> User:
     result = await db.execute(select(User).options(selectinload(User.apis))
                               .where(User.id == user_id))

@@ -154,10 +154,12 @@ async def exit_order_handler(message: Message, redis_client: RedisClient, user: 
 @router.callback_query(lambda call: call.data=='yes_exit')
 async def confirm_exit_order_handler(call: CallbackQuery,db:AsyncSession,redis_client: RedisClient, user: User):
     user_id=call.from_user.id
+    api=user.pick_api()
     await redis_client.set_is_run(user_id,Run.OFF)
     await asyncio.sleep(5)
     await close_all_order_user(user)
     text= msg.get_menu_text(user, Run.OFF)
+    await redis_client.clear_redis_position(user_id,api.name)
     try:
         await call.message.edit_text(text,reply_markup=keyboards.main_menu(flag=Run.OFF))
     except:

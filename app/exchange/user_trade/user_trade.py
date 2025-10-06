@@ -6,6 +6,9 @@ from faststream.redis import RedisBroker
 import numpy as np
 import pandas as pd
 
+
+from .strategies import TradingStrategy,get_trading_strategy
+
 from app.common.config import settings
 
 from app.db.services import RedisClient
@@ -54,12 +57,20 @@ class TradeBot:
         self.all_task=[]
         self.send_notification=publish_telegram_message
         self.broker=RedisBroker(settings.REDIS_URL)
-
+        self.strategy = get_trading_strategy(
+            mode=settings.TRADING_MODE,
+            context=self
+        )
 
     async def init_broker(self):
         await self.broker.start()
 
     def set_client(self,testnet:bool = False):
+        if self.client is not None:
+            try:
+                self.client.close()
+            except:
+                pass
         self.client:BybitRequester=BybitRequester(self.api.api,self.api.secret,testnet=testnet)
 
 
@@ -68,7 +79,7 @@ class TradeBot:
 
 
     async def init_hp_manager(self):
-        self.hp_manager=HedgePositionManager(self.user_id,self.redis,self.settings)
+        self.hp_manager=HedgePositionManager(self.user_id,self.redis,self.settings,self.api.name)
         await self.hp_manager.load_from_redis()
 
 
@@ -83,6 +94,12 @@ class TradeBot:
         await self.client.close()
         await self.broker.close()
 
+
+    async def prepare_and_notification(self,position_object:Union[MainPosition,SecondaryPosition],open:bool):
+        if position_object and self.is_notification:
+            msg = TelegramMessage(user_id=self.user_id, type=NotificationType.POSITION_OPEN if open else NotificationType.POSITION_CLOSE
+                                  , data=position_object)
+            await self.send_notification(self.broker, msg)
 
 
     async def check_settings(self):
@@ -99,20 +116,24 @@ class TradeBot:
                 break
 
 
+    async def should_close(self):
+        balance=await get_balance(self.client)
+        if proof_result(balance,dict):
+            available_balance=float(balance.get('totalAvailableBalance',0))
+            total_balance=float(balance.get('totalWalletBalance',1))
+            return ((available_balance/(total_balance+0.000000001)<0.1) and total_balance>70)
+        return False
+
+
     async def have_balance(self):
         balance=await get_balance(self.client)
         if proof_result(balance,dict):
             available_balance=float(balance.get('totalAvailableBalance',0))
             total_balance=float(balance.get('totalWalletBalance',1))
-            return ((available_balance/(total_balance+0.000000001) > (1-self.settings.balance/100)) and (available_balance>5.0))
+            return ((available_balance+0.00000001/(total_balance+0.00001) > (1-self.settings.balance/100)) and (available_balance>5.0))
         logger.warning('Balance in have_balance does not dict')
         return False
 
-
-    async def get_position_due_side(self,coin:Hashable,side:str) -> Dict:
-        positions=await get_positions(self.client,coin)
-        position=[position for position in positions if position.get('side')==side]
-        return position[0] if len(position)>0 else {}
 
     async def have_both_side_position(self,coin: Hashable) -> bool:
         positions=await get_positions(self.client,coin)
@@ -132,49 +153,6 @@ class TradeBot:
         logger.warning('Position in coin_in_trade does not list')
         return False
 
-
-    async def get_order(self, coin: Hashable, orderId: Union[str, List] = None,
-                        history: bool = True, side: str = '',main:Optional[bool]=None) -> Dict:
-        orders = await get_order(self.client, coin, history=history, limit=5)
-
-        if not isinstance(orders, list):
-            logger.warning('Orders_list in get_order is not a LIST')
-            return {}
-
-        if not orders:
-            return {}
-
-        df = pd.DataFrame(orders)
-
-        if orderId:
-            if isinstance(orderId, list):
-                df = df[df['orderId'].isin(orderId)]
-            else:
-                df = df[df['orderId'] == orderId]
-
-        if side!='':
-            df = df[((df['side'] != side) & (df['stopOrderType'].isin(['TakeProfit', 'StopLoss'])))]
-        order_records = df.to_dict(orient='records')
-        return order_records[0] if order_records else {}
-
-    async def check_hedge(self):
-        while self.is_running!=Run.OFF:
-            await asyncio.sleep(2)
-            for coin in self.hp_manager.get_all_coins():
-                try:
-                    price=await self.redis_client.get_mark_price_coin(coin)
-                    should_hedge=self.hp_manager.should_create_hedge(coin,price)
-                    if should_hedge:
-                        have_both_position=await self.have_both_side_position(coin)
-                        if not have_both_position:
-                            have_one_position= await self.coin_in_trade(coin)
-                            if have_one_position:
-                                await self.fetch_hedge_coin(coin)
-                except Exception as e:
-                    logger.exception(e)
-                await asyncio.sleep(0.1)
-            await asyncio.sleep(5)
-
     async def reload_positions(self):
         while self.is_running!=Run.OFF:
             positions=await get_all_position(self.client)
@@ -190,92 +168,13 @@ class TradeBot:
                     coins_to_add['symbol']=symbol
             for position in coins_to_add.values():
                 if position.get('main'):
-                    order = await self.get_order(position.get('symbol'),side=position['main']['side'],history=False)
+                    order = await self.strategy.get_order(position.get('symbol'),side=position['main']['side'],history=False)
                     await self.hp_manager.set_main_position(position['main'],order_id=order.get('orderId'))
                 if position.get('second'):
                     await self.hp_manager.set_secondary_position(position['second'])
-            await asyncio.sleep(120)
-
-    async def fetch_hedge_coin(self,coin:str):
-        try:
-            coin=pd.Series((await self.redis_client.get_coin_info(coin))[coin],name=coin)
-            # price = float(await self.redis_client.get_mark_price_coin(coin.name))
-            price=await get_mark_price(self.client,coin.name)
-
-            if price == 0:
-                return
-
-            position=self.hp_manager.get_main_position(coin.name)
-            is_long=position.position_idx==PositionIdx.SHORT
-            price_multiplier = 1 + ((self.settings.hedge_stop_loss_percentage / 100) * (1 if not is_long else -1))
-            sl_price = round_step_size(price * price_multiplier, coin.tickSize)
-
-            rounded_size=improved_round_step_size(position.size,coin.qtyStep,price,5)
-            amount_coin = max(
-                rounded_size,
-                position.size)
+            await asyncio.sleep(60)
 
 
-            order = (await place_order(
-                self.client,
-                coin.name,
-                amount_coin,
-                is_long,
-                sl_price=sl_price
-            ))
-
-            if not proof_result(order, dict) or order.get('retCode',-1)!=0:
-                logger.debug(f'order: {order} symbol: {coin.name}')
-                return
-            order=order.get("result")
-
-            await asyncio.sleep(1)
-            await self.after_fetch_coin(coin.name, order,is_hedge=True)
-
-        except Exception as e:
-            logger.exception(e)
-
-    async def change_tp_main_position(self,symbol:Hashable):
-        position=self.hp_manager.get_main_position(symbol)
-        order_id=position.take_stop_orderid
-        price_multiplier = 1 + ((self.settings.hedge_stop_loss_percentage / 100) * (1 if position.position_idx==PositionIdx.LONG else -1))
-        coin_info=await self.redis_client.get_coin_info(symbol)
-        tp_price = round_step_size(position.take_profit_price * price_multiplier, coin_info.get('tickSize',0))
-        await self.hp_manager.update_main_position_take_profit(symbol,tp_price)
-        response={}
-        try:
-            response=await change_tp_price(self.client,symbol,order_id,tp_price)
-        except Exception as e:
-            logger.error(f'Cannot change tp_price\nResponse:{response} \n {e}')
-
-
-    async def check_positions(self):
-        try:
-            while self.is_running!=Run.OFF:
-                need_delete=await self.get_delete_positions()
-                if need_delete:
-                    for pos in need_delete:
-                        is_main=pos.get('is_main',True)
-                        symbol=pos.get('symbol')
-                        position=None
-                        if symbol:
-                            if is_main:
-                                flag=await self.coin_in_trade(coin=symbol)
-                                if not flag:
-                                    position=await self.hp_manager.remove_main_position(symbol)
-                            else:
-                                flag=await self.have_both_side_position(coin=symbol)
-                                if not flag:
-                                    position=await self.hp_manager.remove_secondary_position(symbol)
-                                    await self.change_tp_main_position(symbol)
-
-                            if self.is_notification and position: #and not flag:
-                                msg = TelegramMessage(user_id=self.user_id,type=NotificationType.POSITION_CLOSE, data=position)
-                                await self.send_notification(self.broker,msg)
-                                logger.debug(f'Position {'MAIN' if is_main else 'SECOND'} is over, coin {symbol}')
-                await asyncio.sleep(5)
-        except Exception as e:
-            logger.exception(e)
 
     async def get_delete_positions(self) -> List[Dict]:
         result_db=self.hp_manager.all_to_dict()
@@ -302,136 +201,77 @@ class TradeBot:
             need_delete=pd.DataFrame()
         return need_delete.to_dict('records')
 
-    async def get_worst_positions(self) -> List[Dict]:
-        positions=await get_all_position(self.client)
-        df=pd.DataFrame(positions)
-        df['unrealisedPnl']=df['unrealisedPnl'].astype('float64')
-        symbol=df.groupby('symbol')['unrealisedPnl'].sum().idxmin()
-        return df[df['symbol']==symbol].to_dict(orient='records')
-
-    async def close_worst_pnl_position(self):
-        positions=await self.get_worst_positions()
-        for pos in positions:
-            if pos: await close_order(self.client,pos)
-
-
-    async def after_fetch_coin(self, coin: Hashable, order: Dict, is_hedge: bool = False):
+    async def check_positions(self):
         try:
+            while self.is_running!=Run.OFF:
+                need_delete=await self.get_delete_positions()
+                if need_delete:
+                    for pos in need_delete:
+                        is_main=pos.get('is_main',True)
+                        symbol=pos.get('symbol')
+                        position=None
+                        if symbol:
+                            if is_main:
+                                flag=await self.coin_in_trade(coin=symbol)
+                                if not flag:
+                                    position=await self.hp_manager.remove_main_position(symbol)
+                            else:
+                                flag=await self.have_both_side_position(coin=symbol)
+                                if not flag:
+                                    position=await self.hp_manager.remove_secondary_position(symbol)
+                                    await self.strategy.change_tp_main_position(symbol)
 
-            order_entry = await self.get_order(coin, order['orderId'])
-            i=0
-            while (not order_entry or order_entry['orderStatus'] == 'Cancelled'):
-                order_entry = await self.get_order(coin, order['orderId'])
-                i+=1
-                if i==5:
-                    logger.warning(f"User: {self.user_id} Coin: {coin} hasn't order status {order_entry.get('orderStatus')}")
-                    return
-            side_entry = order_entry['side']
-
-
-            recent_orders = await self.get_order(coin,side=side_entry,history=False)
-            i=0
-            while not recent_orders:
-                recent_orders = await self.get_order(coin,side=side_entry,history=False)
-
-                order_type = "tp_order" if is_hedge else "sl_order"
-                i+=1
-                if i==5:
-                    logger.warning(
-                        f"User: {self.user_id} Coin: {coin} without {order_type} \n"
-                        f"but have order_entry: {order_entry.get('orderId')} - {order_entry.get('orderStatus')}"
-                    )
-                    return
-            position = await self.get_position_due_side(coin, side_entry)
-            if isinstance(position, dict) and position:
-                order_id=recent_orders.get('orderId')
-                if is_hedge:
-                    position=await self.hp_manager.set_secondary_position(position,order_id=order_id)
-                else:
-                    position=await self.hp_manager.set_main_position(position,order_id=order_id)
-
-                if position and self.is_notification:
-                    msg=TelegramMessage(user_id=self.user_id,type=NotificationType.POSITION_OPEN,data=position)
-                    await self.send_notification(self.broker, msg)
-                logger.debug(f'Set {'hedge' if is_hedge else 'main'} position {coin}')
-
-        except Exception as e:
-            logger.exception(f"Error processing {coin}: {e}")
-
-
-
-
-    async def fetch_coin(self, coin: pd.Series) -> None:
-        try:
-            if await self.coin_in_trade(coin.name):
-                logger.debug(f"{coin.name} is trading. Pass.")
-                return
-
-            await set_leverage(self.client, coin.name, leverage=self.settings.leverage)
-
-            balance = await get_balance(self.client)
-            price=await get_mark_price(self.client,coin.name)
-            if not (proof_result(balance, dict) and price > 0):
-                logger.warning(
-                    f"Cannot get balance/price in fetch_coin\n"
-                    f"Price: {price}, Balance: {type(balance)}"
-                )
-                return
-
-            available_balance = float(balance.get("totalAvailableBalance", 0))
-            amount_in_usdt=max((((self.settings.size / 100) * available_balance) * self.settings.leverage),5)
-            raw_amount = (amount_in_usdt / price) +coin.qtyStep
-            amount_coin = max(
-                round_step_size(raw_amount, coin.qtyStep),
-                coin.minOrderQty
-            )
-
-            price_multiplier = 1 + ((self.settings.take_profit / 100) * (1 if coin.Long else -1))
-            tp_price = round_step_size(price * price_multiplier, coin.tickSize)
-
-            order = (await place_order(
-                self.client,
-                coin.name,
-                amount_coin,
-                coin.Long,
-                tp_price=tp_price
-            ))
-
-            if not proof_result(order, dict) or order.get('retCode',-1)!=0:
-                logger.info(f'order: {order} symbol: {coin.name}')
-                return
-            order=order.get("result")
-
-            await asyncio.sleep(1)
-            await self.after_fetch_coin(coin.name, order)
-
+                            await self.prepare_and_notification(position,False)
+                await asyncio.sleep(5)
         except Exception as e:
             logger.exception(e)
 
 
-    async def send_notification(user_id:int, position:Union[MainPosition,SecondaryPosition]=None,**kwargs):
-        try:
-            logger.info(f'position : {position}')
-        except Exception as e:
-            logger.error(e)
+    async def get_worst_positions(self) -> List[Dict]:
+        positions=await get_all_position(self.client)
+        if positions:
+            df = pd.DataFrame(positions)
+            df['unrealisedPnl'] = df['unrealisedPnl'].astype('float64')
+
+            symbols_with_2_positions = df['symbol'].value_counts()
+            symbols_to_keep = symbols_with_2_positions[symbols_with_2_positions == 2].index
+
+            df_filtered = df[df['symbol'].isin(symbols_to_keep)]
+
+            if not df_filtered.empty:
+                symbol = df_filtered.groupby('symbol')['unrealisedPnl'].sum().idxmin()
+                return df[df['symbol']==symbol].to_dict(orient='records')
+        return []
+
+
+
+    async def close_worst_pnl_position(self):
+        positions=await self.get_worst_positions()
+        if not positions: return
+        for pos in positions:
+            if pos: await close_order(self.client,pos)
+
+
+
 
     async def trading_task(self):
         df_info=pd.DataFrame.from_dict(await self.redis_client.get_all_coins_info(),orient='index')
-
         try:
             while self.is_running!=Run.OFF:
                 while self.is_running==Run.ACTIVE:
                     await switch_position_mode(self.client)
                     have_balance=await self.have_balance()
-                    if not (have_balance) or len(self.hp_manager.positions)>self.settings.balance:
-                        if not have_balance:
-                            await self.close_worst_pnl_position()
-                        await asyncio.sleep(60)
+                    if not (have_balance) or (len(self.hp_manager.positions)>self.settings.balance):
+                        try:
+                            should_close= await self.should_close()
+                            if should_close:
+                                await self.close_worst_pnl_position()
+                        except Exception as e:
+                            self.set_client()
+                            logger.exception(f"cant close wors pnl positions {e}")
+                        await asyncio.sleep(10)
                         continue
-                    if settings.TRADING_MODE=='manually': #TODO: ПОМЕНЯТЬ MANUALLY ДЛЯ ВСЕХ КЛЮЧЕЙ
-                        coins=pd.DataFrame.from_dict(await self.redis_client.get_coins_with_delete_by_user(user_id=self.user_id),orient='index')
-                    else:
-                        coins=pd.DataFrame.from_dict(await self.redis_client.get_coins(),orient='index')
+                    coins= await self.strategy.get_coins_to_trade()
                     if coins.empty:
                         await asyncio.sleep(10)
                         continue
@@ -440,27 +280,27 @@ class TradeBot:
                     for _,coin in coins.iterrows():
                         if coin.name in self.hp_manager.positions.keys():
                             continue
-
-                        await asyncio.sleep(np.random.choice(np.linspace(1,3,10)))
-                        task=asyncio.create_task(self.fetch_coin(coin))
-
+                        have_balance=await self.have_balance()
+                        if have_balance:
+                            await asyncio.sleep(np.random.choice(np.linspace(1,3,10)))
+                            task=asyncio.create_task(self.strategy.fetch_trade(coin))
                     await asyncio.sleep(3)
 
                 await asyncio.sleep(1)
 
             await asyncio.sleep(5)
         except Exception as e:
-            logger.error(f'CRITICAL ERROR {e}')
+            logger.exception(f'CRITICAL ERROR {e}')
 
 
     async def start_trade(self):
         tasks = [
             self.check_running(),
             self.check_settings(),
-            self.check_hedge(),
             self.check_positions(),
             self.trading_task(),
-            self.reload_positions()
+            self.reload_positions(),
+            self.strategy.all_tasks()
         ]
 
         for task in tasks:

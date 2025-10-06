@@ -1,3 +1,7 @@
+#TODO: Для всех опций перенести на manually/auto. Все классы перенести и сделать конструктор. Чтобы собирать.
+# Затратгивается торговля/HEDGE position/TELEGRAM.
+
+
 import logging
 import asyncio
 from asyncio.exceptions import CancelledError
@@ -189,3 +193,5 @@ if __name__ == "__main__":
     if sys.platform == 'win32':
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
     asyncio.run(main())
+
+#%

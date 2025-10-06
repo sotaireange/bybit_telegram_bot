@@ -54,9 +54,10 @@ async def get_user_pnl(user: User, use_last_sub_day:bool=False,only_sum:bool=Fal
         return df if not only_sum else df['closedPnl'].sum() if len(df)>0 else 0
 
 
-async def get_all_user_pnl(users: Sequence[User]) -> Dict[User,float]:
-    tasks=[(get_user_pnl(user,True,only_sum=True,api_name=api_name)) for user in users for api_name in user for user in users]
-    results=await asyncio.gather(*tasks)
-    # pnl_users={user.id:results[i] for i,user in enumerate(users)}
-    pnl_users=dict(zip(users,results))
-    return pnl_users
+async def get_all_user_pnl(users: Sequence[User]) -> Dict[User, float]:
+    tasks = [
+        get_user_pnl(user, True, only_sum=True, api_name=user.pick_api())
+        for user in users
+    ]
+    results = await asyncio.gather(*tasks)
+    return dict(zip(users, results))

@@ -10,6 +10,7 @@ from aiogram.fsm.storage.redis import Redis
 
 from app.db.services import RedisClient
 
+from app.common.config import settings
 
 
 logger=logging.getLogger('system')
@@ -35,29 +36,86 @@ async def get_instrument_info(exchange: ccxt) -> Dict:
 
     return df.to_dict(orient='index')
 
-
-async def get_all_tickers(exchange: ccxt,data_for_coins: Dict) -> pd.DataFrame:
-
+async def _get_tickers_for_auto_mode(exchange: ccxt, data_for_coins: Dict) -> pd.DataFrame:
     endpoint = '/v5/market/tickers'
     method = 'GET'
     params = {'category': 'linear'}
 
     response = (await exchange.request(endpoint, method=method, params=params))
-    df=pd.DataFrame(response['result']['list'])
-    cols_to_keep = ['markPrice','price24hPcnt','turnover24h','symbol']
-    df=df.loc[:,cols_to_keep]
+    df = pd.DataFrame(response['result']['list'])
+
+    cols_to_keep = ['markPrice', 'price24hPcnt', 'turnover24h', 'symbol']
+    df = df.loc[:, cols_to_keep]
     df.set_index('symbol', inplace=True)
     mask = np.char.endswith(df.index.values.astype(str), 'USDT')
     df = df[mask]
-    df= df.astype(float)
-    df['price24hPcnt']*=100
+    df = df.astype(float)
+    df['price24hPcnt'] *= 100
 
-    df['Long']=((df['price24hPcnt']<=data_for_coins.get('long_percentage',-10))& (df['turnover24h']>data_for_coins.get('volume_long',30_000_000)))
-    df['Short']=((df['price24hPcnt']>=data_for_coins.get('short_percentage',10))& (df['turnover24h']>data_for_coins.get('volume_short',30_000_000)))
-
+    df['Long'] = ((df['price24hPcnt'] <= data_for_coins.get('long_percentage', -10)) &
+                  (df['turnover24h'] > data_for_coins.get('volume_long', 30_000_000)))
+    df['Short'] = ((df['price24hPcnt'] >= data_for_coins.get('short_percentage', 10)) &
+                   (df['turnover24h'] > data_for_coins.get('volume_short', 30_000_000)))
 
     return df
 
+
+async def _get_tickers_for_manual_mode(exchange: ccxt, data_for_coins: Dict) -> pd.DataFrame:
+    logger.info("Получение тикеров в режиме MANUALLY (72ч)...")
+
+    endpoint = '/v5/market/tickers'
+    params = {'category': 'linear'}
+    response = (await exchange.request(endpoint, 'GET', params=params))
+    df = pd.DataFrame(response['result']['list'])
+
+    cols_to_keep = ['markPrice', 'turnover24h','price24hPcnt', 'symbol'] #
+    df = df.loc[:, cols_to_keep]
+    df.set_index('symbol', inplace=True)
+    mask = np.char.endswith(df.index.values.astype(str), 'USDT')
+    df = df[mask]
+    df = df.astype(float)
+
+
+    async def get_price_x_days_ago(symbol:str,days:int=3):
+        ts_days_ago = int((time.time() - (24*days) * 3600) * 1000)
+
+        ohlcv = await exchange.fetch_ohlcv(symbol, '1m', since=ts_days_ago-50000, limit=5)
+
+        df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+        df['datetime'] = pd.to_datetime(df['timestamp'], unit='ms')
+
+        df['diff'] = abs(df['timestamp'] - ts_days_ago)
+        nearest_candle = df.loc[df['diff'].idxmin()]
+        return (nearest_candle['open']+nearest_candle['close'])/2
+
+
+    tasks = {symbol: asyncio.create_task(get_price_x_days_ago(symbol)) for symbol in df.index}
+    historical_prices = await asyncio.gather(*tasks.values())
+
+    price_days_ago_series = pd.Series(dict(zip(tasks.keys(), historical_prices)), name='priceDaysAgo').dropna()
+    df = df.join(price_days_ago_series)
+    df.dropna(inplace=True)
+
+    df['priceDaysAgoPcnt'] = ((df['markPrice'] - df['priceDaysAgo']) / df['priceDaysAgo']) * 100
+
+    df['Long'] = ((df['priceDaysAgoPcnt'] >= data_for_coins.get('long_percentage', 150)) &
+                  (df['turnover24h'] > data_for_coins.get('volume_long', 30_000_000)))
+    df['Short'] = False
+
+    return df
+
+
+async def get_all_tickers(exchange: ccxt, data_for_coins: Dict) -> pd.DataFrame:
+    strategy_map = {
+        'auto': _get_tickers_for_auto_mode,
+        'manually': _get_tickers_for_manual_mode,
+    }
+
+    selected_strategy = strategy_map.get(settings.TRADING_MODE)
+
+
+
+    return await selected_strategy(exchange, data_for_coins)
 
 
 

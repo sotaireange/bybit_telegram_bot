@@ -153,8 +153,12 @@ class MessageBuilder:
 
         for idx, position in grouped:
             symbol = position['symbol'].iloc[0][:-4]
-            main_positions = position[position['takeProfit'].notna()]
-            hedge_positions = position[position['stopLoss'].notna()]
+            if settings.TRADING_MODE=='auto':
+                main_positions = position[position['takeProfit'].notna()]
+                hedge_positions = position[position['stopLoss'].notna()]
+            else:
+                main_positions = position[position['takeProfit'].isna()]
+                hedge_positions = position[position['takeProfit'].notna()]
 
             if not main_positions.empty:
                 side = main_positions['side'].iloc[0]

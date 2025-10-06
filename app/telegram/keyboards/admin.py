@@ -4,6 +4,8 @@ from app.db.models import User,UserAPI
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
+from app.common.config import settings
+
 
 def admin_menu():
     markup= InlineKeyboardBuilder()
@@ -46,20 +48,33 @@ def are_you_sure():
     return markup.as_markup()
 
 
-def admin_settings_menu():
-    markup= InlineKeyboardBuilder()
-    markup.row(InlineKeyboardButton(text="Объем Лонг",callback_data="volume_long"))
-    markup.row(InlineKeyboardButton(text="Объем Шорт",callback_data="volume_short"))
-    markup.row(InlineKeyboardButton(text="Процент Лонг",callback_data="long_percentage"))
-    markup.row(InlineKeyboardButton(text="Процент Шорт",callback_data="short_percentage"))
-    markup.row(InlineKeyboardButton(text="Процент баланса от общего",callback_data="size")) #1-5
-    markup.row(InlineKeyboardButton(text="Максимальный баланс",callback_data="balance")) #30-70
-    markup.row(InlineKeyboardButton(text="Процент прибыли(Take Profit)",callback_data="take_profit")) #5-30
-    markup.row(InlineKeyboardButton(text="Процент Хеджа Long",callback_data="hedge_percentage_long")) #5-30
-    markup.row(InlineKeyboardButton(text="Процент Хеджа Short",callback_data="hedge_percentage_short")) #5-30
-    markup.row(InlineKeyboardButton(text="Стоп Лосс Хеджа",callback_data="hedge_stop_loss_percentage")) #5-30
-    markup.row(InlineKeyboardButton(text="Кредитное плечо",callback_data="leverage")) # 1-20
-    markup.row(InlineKeyboardButton(text="Назад",callback_data="admin_menu"))
+from aiogram.utils.keyboard import InlineKeyboardBuilder, InlineKeyboardButton
+
+def admin_settings_menu(trading_mode: str):
+
+    markup = InlineKeyboardBuilder()
+
+    all_buttons = [
+        ('Объем Лонг', 'volume_long', ('auto', 'manually')),
+        ('Объем Шорт', 'volume_short', ('auto',)),
+        ('Процент Лонг', 'long_percentage', ('auto', 'manually')),
+        ('Процент Шорт', 'short_percentage', ('auto',)),
+        ('Процент баланса от общего', 'size', ('auto', 'manually')),
+        ('Максимальный баланс', 'balance', ('auto', 'manually')),
+        ('Процент прибыли(Take Profit)', 'take_profit', ('auto', 'manually')),
+        ('Процент Хеджа Long', 'hedge_percentage_long', ('auto',)),
+        ('Процент Хеджа Short', 'hedge_percentage_short', ('auto',)),
+        ('Стоп Лосс', 'hedge_stop_loss_percentage', ('auto', 'manually')),
+        ('Кредитное плечо', 'leverage', ('auto', 'manually')),
+    ]
+
+    for text, callback_data, modes in all_buttons:
+        if trading_mode in modes:
+            markup.row(InlineKeyboardButton(text=text, callback_data=callback_data))
+
+    # Общие кнопки можно добавить в конце
+    markup.row(InlineKeyboardButton(text="Назад", callback_data="admin_menu"))
+
     return markup.as_markup()
 
 
