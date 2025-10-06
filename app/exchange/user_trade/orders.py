@@ -12,7 +12,7 @@ from app.db.models import HedgePosition,MainPosition,SecondaryPosition,PositionI
 
 
 
-class HedgePositionManager: #TODO: Это затрагивается
+class HedgePositionManager:
     def __init__(self, user_id: int, redis: Redis, settings: TradeSettings,api_name:str="MAIN"):
         self.user_id = user_id
         self.redis = redis
