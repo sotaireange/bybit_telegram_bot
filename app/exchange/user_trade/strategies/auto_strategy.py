@@ -138,7 +138,7 @@ class AutoTradingStrategy(TradingStrategy):
                             if have_one_position:
                                 coin_series=pd.Series((await self.context.redis_client.get_coin_info(coin))[coin],name=coin)
                                 order=await self.fetch_hedge_order(coin_series)
-                                succes=await self._process_successful_order(coin, order,is_hedge=True)
+                                succes=await self._process_successful_order(coin_series, order,is_hedge=True)
                 except Exception as e:
                     logger.exception(e)
                 await asyncio.sleep(0.1)

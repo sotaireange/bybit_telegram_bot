@@ -95,18 +95,18 @@ class TradingStrategy(ABC):
         order_records = df.to_dict(orient='records')
         return order_records[0] if order_records else {}
 
-    async def _get_confirmed_orders(self, coin: Hashable,
+    async def _get_confirmed_orders(self, coin: pd.Series,
                                     order_id: Optional[str]=None,
                                     history: bool=True,
                                     side:str='',
                                     max_retries: int = 5) -> Dict[str,str]:
         for i in range(max_retries):
-            order_entry = await self.get_order(coin, order_id,history=history,side=side)
+            order_entry = await self.get_order(coin.name, order_id,history=history,side=side)
             if order_entry and order_entry.get('orderStatus') != 'Cancelled':
                 return order_entry
             await asyncio.sleep(0.5)
         logger.warning(
-            f"User: {self.context.user_id}, Coin: {coin} "
+            f"User: {self.context.user_id}, Coin: {coin.name} "
             f"Order {order_id} Side= {side}, History={history} hasn't found or cancelled."
         )
         return {}
@@ -135,7 +135,7 @@ class TradingStrategy(ABC):
             await asyncio.sleep(1)
 
 
-            order_entry = await self._get_confirmed_orders(coin.name, order['orderId'])
+            order_entry = await self._get_confirmed_orders(coin, order['orderId'])
             if not order_entry:
                 logger.error(f"FAIL GET CONFIRMED ORDER {order['orderId']} for {coin}.")
                 return False
