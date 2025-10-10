@@ -107,7 +107,7 @@ class TradingStrategy(ABC):
             await asyncio.sleep(0.5)
         logger.warning(
             f"User: {self.context.user_id}, Coin: {coin.name} "
-            f"Order {order_id} Side= {side}, History={history} hasn't found or cancelled."
+            f"Order {order_id} STATUS {order_entry.get('orderStatus')} Side= {side}, History={history} hasn't found or cancelled."
         )
         return {}
 
