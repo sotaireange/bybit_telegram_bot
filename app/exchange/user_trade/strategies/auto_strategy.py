@@ -42,7 +42,7 @@ class AutoTradingStrategy(TradingStrategy):
                     await self.context.hp_manager.update_main_position_take_profit(symbol,tp_price)
 
         except Exception as e:
-            logger.error(f'Cannot change tp_price\nResponse:{response} \n {e}')
+            logger.error(f'Cannot change tp_price \n Response:{response} \n {e}')
 
 
     async def get_coins_to_trade(self) -> pd.DataFrame:
