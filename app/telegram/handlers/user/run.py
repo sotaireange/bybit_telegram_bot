@@ -37,42 +37,42 @@ logger=logging.getLogger('aiogram')
 @router.callback_query(lambda call: call.data=="run")
 async def run(call: CallbackQuery, state: FSMContext,redis_client:RedisClient,user:User,db:AsyncSession,broker:RedisBroker):
     apis=user.pick_api()
-    if not apis.api or not apis.secret:
-        text=msg('lost_api_secret')
-        await call.message.edit_text(text=text,reply_markup=keyboards.main_menu(Run.OFF))
-        return
-
-    status=await check_permissions(user)
-    user_id=call.from_user.id
-    if settings.TRADING_MODE!='manually' or (user.id not in settings.ADMIN_IDS):
-        await check_bybit_uids(db,user,status)
-    user=await pdb.get_user(db,user_id)
-    if not status.get('status',0):
-        text=msg.get_permission_text(status)
-        await call.message.edit_text(text=text,reply_markup=keyboards.main_menu(Run.OFF))
-        return
-
-    await redis_client.set_is_run(user_id,Run.OFF)
-
-    if sub_is_over(user) and settings.TRADING_MODE!='manually' or not (user.id in settings.ADMIN_IDS):
-        text=msg('sub_is_over')
-        pnl=await get_user_pnl(user,True,True)
-        if pnl<10:
-            await pdb.extend_subscription(db,user_id,1)
-        else:
-            await call.message.edit_text(text=text,reply_markup=keyboards.subs_menu())
-            return
-    if user.bybit_uid is None and settings.TRADING_MODE!='manually' or not (user.id in settings.ADMIN_IDS):
-        text=msg('bybit_uid_is_bad')
-        await call.message.edit_text(text=text,reply_markup=keyboards.main_menu(Run.OFF))
-        return
-
-    if not user.bybit_sub_account_uid and (settings.TRADING_MODE!='manually' or not (user.id in settings.ADMIN_IDS)):
-        text=msg('get_bybit_uid_error')
-        await call.message.edit_text(text=text,reply_markup=keyboards.main_menu(Run.OFF))
-        return
-
-    text= msg.get_menu_text(user, Run.ACTIVE)
+    # if not apis.api or not apis.secret:
+    #     text=msg('lost_api_secret')
+    #     await call.message.edit_text(text=text,reply_markup=keyboards.main_menu(Run.OFF))
+    #     return
+    #
+    # status=await check_permissions(user)
+    # user_id=call.from_user.id
+    # if settings.TRADING_MODE!='manually' or (user.id not in settings.ADMIN_IDS):
+    #     await check_bybit_uids(db,user,status)
+    # user=await pdb.get_user(db,user_id)
+    # if not status.get('status',0):
+    #     text=msg.get_permission_text(status)
+    #     await call.message.edit_text(text=text,reply_markup=keyboards.main_menu(Run.OFF))
+    #     return
+    #
+    # await redis_client.set_is_run(user_id,Run.OFF)
+    #
+    # if sub_is_over(user) and settings.TRADING_MODE!='manually' or not (user.id in settings.ADMIN_IDS):
+    #     text=msg('sub_is_over')
+    #     pnl=await get_user_pnl(user,True,True)
+    #     if pnl<10:
+    #         await pdb.extend_subscription(db,user_id,1)
+    #     else:
+    #         await call.message.edit_text(text=text,reply_markup=keyboards.subs_menu())
+    #         return
+    # if user.bybit_uid is None and settings.TRADING_MODE!='manually' or not (user.id in settings.ADMIN_IDS):
+    #     text=msg('bybit_uid_is_bad')
+    #     await call.message.edit_text(text=text,reply_markup=keyboards.main_menu(Run.OFF))
+    #     return
+    #
+    # if not user.bybit_sub_account_uid and (settings.TRADING_MODE!='manually' or not (user.id in settings.ADMIN_IDS)):
+    #     text=msg('get_bybit_uid_error')
+    #     await call.message.edit_text(text=text,reply_markup=keyboards.main_menu(Run.OFF))
+    #     return
+    #
+    # text= msg.get_menu_text(user, Run.ACTIVE)
     await call.message.edit_text(text=text,reply_markup=keyboards.main_menu(Run.ACTIVE))
 
     await Task.get_user_task_with_wait(db,user_id)
