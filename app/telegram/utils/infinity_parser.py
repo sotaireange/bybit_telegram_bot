@@ -61,8 +61,6 @@ async def _get_tickers_for_auto_mode(exchange: ccxt, data_for_coins: Dict) -> pd
 
 
 async def _get_tickers_for_manual_mode(exchange: ccxt, data_for_coins: Dict) -> pd.DataFrame:
-    logger.info("Получение тикеров в режиме MANUALLY (72ч)...")
-
     endpoint = '/v5/market/tickers'
     params = {'category': 'linear'}
     method='GET'
