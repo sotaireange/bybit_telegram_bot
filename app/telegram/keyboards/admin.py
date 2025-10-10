@@ -57,14 +57,14 @@ def admin_settings_menu():
     all_buttons = [
         ('Объем Лонг', 'Объем Лонг', 'volume_long', ('auto', 'manually')),
         ('Объем Шорт', 'Объем Шорт', 'volume_short', ('auto',)),
-        ('Процент Лонг', 'Процент Лонга Хеджа', 'long_percentage', ('auto', 'manually')),
-        ('Процент Шорт', 'Процент Шорта Хеджа', 'short_percentage', ('auto',)),
+        ('Процент Лонг', 'Процент Лонга', 'long_percentage', ('auto', 'manually')),
+        ('Процент Шорт', 'Процент Шорта', 'short_percentage', ('auto',)),
         ('Процент баланса от общего', 'Процент баланса от общего', 'size', ('auto', 'manually')),
         ('Максимальный баланс', 'Максимальный баланс', 'balance', ('auto', 'manually')),
         ('Процент прибыли(Take Profit)', 'Тейк Профит Безубытка', 'take_profit', ('auto', 'manually')),
         ('Процент Хеджа Long', 'Процент Хеджа Long', 'hedge_percentage_long', ('auto',)),
         ('Процент Хеджа Short', 'Процент Хеджа Short', 'hedge_percentage_short', ('auto',)),
-        ('Стоп Лосс', 'Стоп-Лосс', 'hedge_stop_loss_percentage', ('auto', 'manually')),
+        ('Стоп Лосс', 'Тейк Профит Хеджа', 'hedge_stop_loss_percentage', ('auto', 'manually')),
         ('Кредитное плечо', 'Кредитное плечо', 'leverage', ('auto', 'manually')),
     ]
 

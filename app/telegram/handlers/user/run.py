@@ -43,7 +43,7 @@ async def run(call: CallbackQuery, state: FSMContext,redis_client:RedisClient,us
     #     return
     #
     # status=await check_permissions(user)
-    # user_id=call.from_user.id
+    user_id=call.from_user.id
     # if settings.TRADING_MODE!='manually' or (user.id not in settings.ADMIN_IDS):
     #     await check_bybit_uids(db,user,status)
     # user=await pdb.get_user(db,user_id)
@@ -72,7 +72,7 @@ async def run(call: CallbackQuery, state: FSMContext,redis_client:RedisClient,us
     #     await call.message.edit_text(text=text,reply_markup=keyboards.main_menu(Run.OFF))
     #     return
     #
-    # text= msg.get_menu_text(user, Run.ACTIVE)
+    text= msg.get_menu_text(user, Run.ACTIVE)
     await call.message.edit_text(text=text,reply_markup=keyboards.main_menu(Run.ACTIVE))
 
     await Task.get_user_task_with_wait(db,user_id)

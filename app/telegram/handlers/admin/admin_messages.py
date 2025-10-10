@@ -5,7 +5,7 @@ from app.db.models import User
 
 
 from app.telegram.utils.messages import MessageBuilder
-
+from app.common.config import settings
 
 class AdminMsgBuilder(MessageBuilder):
     translations = {
@@ -51,22 +51,44 @@ class AdminMsgBuilder(MessageBuilder):
         return text
 
 
-    def get_global_settings_text(self,data_coin:Dict,data_trade:Dict) -> str:
-        text=(f'Настройка монет:'
-              f'Объем Лонг : {data_coin['volume_long']}$\n'
-              f'Объем Шорт : {data_coin['volume_short']}$\n'
-              f'Процент лонг : {data_coin['long_percentage']}%\n'
-              f'Процент Шорт : {data_coin['short_percentage']}%\n'
-              f'Настройка торговли:\n'
-              f'Процент баланса от общего: {data_trade['size']}%\n'
-              f'Максимальный баланс : {data_trade['balance']}$\n'
-              f'Процент прибыли(Take Profit : {data_trade['take_profit']}%\n'
-              f'Процента Хеджа Long : {data_trade['hedge_percentage_long']}\n'
-              f'Процента Хеджа Short : {data_trade['hedge_percentage_short']}\n'
-              f'Стоп Лосс Хеджа : {data_trade['hedge_stop_loss_percentage']}\n'
-              f'Кредитное плечо : {data_trade['leverage']}%\n'
-              )
-        return text
+    @classmethod
+    def get_global_settings_text(cls,data_coin:Dict, data_trade:Dict) -> str:
+        trading_mode=settings.TRADING_MODE
+        SETTINGS_CONFIG = [
+            # Категория 'coin'
+            ('coin', 'volume_long', 'Объем Лонг', 'Объем Лонг', '$', ('auto', 'manually')),
+            ('coin', 'volume_short', 'Объем Шорт', 'Объем Шорт', '$', ('auto',)),
+            ('coin', 'long_percentage', 'Процент Лонг', 'Процент Лонга', '%', ('auto', 'manually')),
+            ('coin', 'short_percentage', 'Процент Шорт', 'Процент Шорта', '%', ('auto',)),
+            # Категория 'trade'
+            ('trade', 'size', 'Процент баланса от общего', 'Процент баланса от общего', '%', ('auto', 'manually')),
+            ('trade', 'balance', 'Максимальный баланс', 'Максимальный баланс', '$', ('auto', 'manually')),
+            ('trade', 'take_profit', 'Процент прибыли(Take Profit)', 'Тейк Профит Безубытка', '%', ('auto', 'manually')),
+            ('trade', 'hedge_percentage_long', 'Процент Хеджа Long', 'Процент Хеджа Long', '%', ('auto',)),
+            ('trade', 'hedge_percentage_short', 'Процент Хеджа Short', 'Процент Хеджа Short', '%', ('auto',)),
+            ('trade', 'hedge_stop_loss_percentage', 'Стоп Лосс', 'Тейк Профит Хеджа', '%', ('auto', 'manually')),
+            ('trade', 'leverage', 'Кредитное плечо', 'Кредитное плечо', '%', ('auto', 'manually')),
+        ]
+        text_lines = []
+
+        # Добавляем заголовок для настроек монет
+        text_lines.append('Настройка монет:')
+        for category, key, text_auto, text_manually, suffix, modes in SETTINGS_CONFIG:
+            if category == 'coin' and trading_mode in modes:
+                label = text_auto if trading_mode == 'auto' else text_manually
+                value = data_coin.get(key, 'N/A') # .get() для безопасности
+                text_lines.append(f'{label} : {value}{suffix}')
+
+        # Добавляем заголовок для настроек торговли
+        text_lines.append('\nНастройка торговли:')
+        for category, key, text_auto, text_manually, suffix, modes in SETTINGS_CONFIG:
+            if category == 'trade' and trading_mode in modes:
+                label = text_auto if trading_mode == 'auto' else text_manually
+                value = data_trade.get(key, 'N/A') # .get() для безопасности
+                text_lines.append(f'{label} : {value}{suffix}')
+
+        return '\n'.join(text_lines)
+
 
 
 
