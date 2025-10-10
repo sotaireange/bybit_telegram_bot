@@ -137,7 +137,7 @@ class TradingStrategy(ABC):
 
             order_entry = await self._get_confirmed_orders(coin, order['orderId'])
             if not order_entry:
-                logger.error(f"FAIL GET CONFIRMED ORDER {order['orderId']} for {coin}.")
+                logger.error(f"FAIL GET CONFIRMED ORDER {order['orderId']} for {coin.name}.\n Order : {order}")
                 return False
 
             side_entry = order_entry.get['side']
