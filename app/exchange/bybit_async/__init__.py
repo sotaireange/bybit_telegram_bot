@@ -13,7 +13,8 @@ from .stock_bot import (
     close_order,
     get_pnl_from_chunks,
     get_api_permissions,
-    change_tp_price
+    change_tp_price,
+    add_tp_price
 )
 
 __all__ = [
@@ -31,5 +32,6 @@ __all__ = [
     'close_order',
     'get_pnl_from_chunks',
     'get_api_permissions',
-    'change_tp_price'
+    'change_tp_price',
+    'add_tp_price'
 ]

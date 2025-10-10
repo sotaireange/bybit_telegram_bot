@@ -261,15 +261,19 @@ class TradeBot:
                 while self.is_running==Run.ACTIVE:
                     await switch_position_mode(self.client)
                     have_balance=await self.have_balance()
-                    if not (have_balance) or (len(self.hp_manager.positions)>self.settings.balance):
+                    if not (have_balance):
                         try:
                             should_close= await self.should_close()
                             if should_close:
                                 await self.close_worst_pnl_position()
                         except Exception as e:
                             self.set_client()
-                            logger.exception(f"cant close wors pnl positions {e}")
+                            logger.exception(f"cant close worst pnl positions {e}")
                         await asyncio.sleep(10)
+                        continue
+                    max_order=self.settings.balance if settings.TRADING_MODE=='auto' else 25
+                    if (len(self.hp_manager.positions)>=max_order):
+                        await asyncio.sleep(30)
                         continue
                     coins= await self.strategy.get_coins_to_trade()
                     if coins.empty:
@@ -284,7 +288,8 @@ class TradeBot:
                         if have_balance:
                             await asyncio.sleep(np.random.choice(np.linspace(1,3,10)))
                             task=asyncio.create_task(self.strategy.fetch_trade(coin))
-                    await asyncio.sleep(3)
+                        await asyncio.sleep(0.5)
+                    await asyncio.sleep(20)
 
                 await asyncio.sleep(1)
 

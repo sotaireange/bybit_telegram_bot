@@ -24,8 +24,8 @@ async def place_order(
 
     if amount <= 0:
         raise ValueError("The 'amount' parameter must be greater than 0.")
-    if tp_price <= 0 and sl_price<=0:
-        raise ValueError("The 'tp_price' parameter must be greater than 0.")
+    # if tp_price <= 0 and sl_price<=0:
+    #     raise ValueError("The 'tp_price' parameter must be greater than 0.")
 
     order_data = {
             'category': 'linear',
@@ -56,6 +56,34 @@ async def place_order(
     finally:
         return response
 
+async def add_tp_price(
+        bybit_requester: BybitRequester,
+        coin:Hashable,
+        long:bool=True,
+        tp_price:float=0,
+    ) -> Optional[Dict]:
+
+    order_data = {
+        'category': 'linear',
+        'symbol': coin,
+        "positionIdx": 1 if long else 2,
+        'takeProfit': str(tp_price)
+    }
+    response={}
+    try:
+        response = (await bybit_requester.send_signed_request(
+            method='POST',
+            endpoint='/v5/position/trading-stop',
+            params=order_data
+        ))
+    except BybitApiError as e:
+        logger.error(f'Error in amend order\n'
+                     f'Data: {order_data}\nError: {e}')
+    except Exception as e:
+        logger.error(e,stack_info=True)
+
+    finally:
+        return response
 
 async def change_tp_price(
         bybit_requester: BybitRequester,

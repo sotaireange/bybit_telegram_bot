@@ -14,7 +14,8 @@ from app.exchange.bybit_async import (get_positions,get_order,
                                       get_mark_price,set_leverage,
                                       get_balance,get_all_position,
                                       place_order,switch_position_mode,
-                                      change_tp_price,close_order)
+                                      change_tp_price,close_order,
+                                      add_tp_price)
 
 from app.db.models import Run,PositionIdx,MainPosition
 
@@ -26,12 +27,6 @@ class ManualTradingStrategy(TradingStrategy):
     def __init__(self, context: 'TradeBot'):
         super().__init__(context)
 
-    async def place_tp_price_order(self,position:MainPosition):
-        price_multiplier = 1 + ((self.context.settings.hedge_stop_loss_percentage / 100) * (1 if position.position_idx==PositionIdx.LONG else -1))
-        coin_info=(await self.context.redis_client.get_coin_info(position.symbol))[position.symbol]
-        tp_price = round_step_size(position.entry_price * price_multiplier, coin_info.get('tickSize',0))
-        if self.context.hp_manager.get_main_position(position.symbol):
-            await self.context.hp_manager.update_main_position_take_profit(position.symbol,tp_price)
 
 
     async def change_tp_main_position(self,symbol:Hashable):
@@ -39,8 +34,15 @@ class ManualTradingStrategy(TradingStrategy):
         if not position: return
         response={}
         try:
-            response=await self.place_tp_price_order(position)
-
+            coin=position.symbol
+            price_multiplier = 1 + ((self.context.settings.hedge_stop_loss_percentage / 100) * (1 if position.position_idx==PositionIdx.LONG else -1))
+            coin_info=(await self.context.redis_client.get_coin_info(coin))[coin]
+            tp_price = round_step_size(position.entry_price * price_multiplier, coin_info.get('tickSize',0))
+            if self.context.hp_manager.get_main_position(coin):
+                if (not self.context.have_both_side_position(coin)) and self.context.coin_in_trade(coin):
+                    await add_tp_price(self.context.client,coin,True,tp_price)
+                    if self.context.hp_manager.get_main_position(coin):
+                        await self.context.hp_manager.update_main_position_take_profit(coin,tp_price)
         except Exception as e:
             logger.error(f'Cannot change tp_price\nResponse:{response} \n {e}')
         finally:
@@ -131,6 +133,7 @@ class ManualTradingStrategy(TradingStrategy):
 
 
     async def fetch_trade(self,coin:pd.Series):
+
         await set_leverage(self.context.client, coin.name, leverage=self.context.settings.leverage)
 
         order=await self.fetch_order(coin)

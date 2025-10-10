@@ -50,33 +50,34 @@ def are_you_sure():
 
 from aiogram.utils.keyboard import InlineKeyboardBuilder, InlineKeyboardButton
 
-def admin_settings_menu(trading_mode: str):
+def admin_settings_menu():
 
     markup = InlineKeyboardBuilder()
-
+    trading_mode=settings.TRADING_MODE
     all_buttons = [
-        ('Объем Лонг', 'volume_long', ('auto', 'manually')),
-        ('Объем Шорт', 'volume_short', ('auto',)),
-        ('Процент Лонг', 'long_percentage', ('auto', 'manually')),
-        ('Процент Шорт', 'short_percentage', ('auto',)),
-        ('Процент баланса от общего', 'size', ('auto', 'manually')),
-        ('Максимальный баланс', 'balance', ('auto', 'manually')),
-        ('Процент прибыли(Take Profit)', 'take_profit', ('auto', 'manually')),
-        ('Процент Хеджа Long', 'hedge_percentage_long', ('auto',)),
-        ('Процент Хеджа Short', 'hedge_percentage_short', ('auto',)),
-        ('Стоп Лосс', 'hedge_stop_loss_percentage', ('auto', 'manually')),
-        ('Кредитное плечо', 'leverage', ('auto', 'manually')),
+        ('Объем Лонг', 'Объем Лонг', 'volume_long', ('auto', 'manually')),
+        ('Объем Шорт', 'Объем Шорт', 'volume_short', ('auto',)),
+        ('Процент Лонг', 'Процент Лонга Хеджа', 'long_percentage', ('auto', 'manually')),
+        ('Процент Шорт', 'Процент Шорта Хеджа', 'short_percentage', ('auto',)),
+        ('Процент баланса от общего', 'Процент баланса от общего', 'size', ('auto', 'manually')),
+        ('Максимальный баланс', 'Максимальный баланс', 'balance', ('auto', 'manually')),
+        ('Процент прибыли(Take Profit)', 'Тейк Профит Безубытка', 'take_profit', ('auto', 'manually')),
+        ('Процент Хеджа Long', 'Процент Хеджа Long', 'hedge_percentage_long', ('auto',)),
+        ('Процент Хеджа Short', 'Процент Хеджа Short', 'hedge_percentage_short', ('auto',)),
+        ('Стоп Лосс', 'Стоп-Лосс', 'hedge_stop_loss_percentage', ('auto', 'manually')),
+        ('Кредитное плечо', 'Кредитное плечо', 'leverage', ('auto', 'manually')),
     ]
 
-    for text, callback_data, modes in all_buttons:
+    for text_auto, text_manually, callback_data, modes in all_buttons:
         if trading_mode in modes:
+            # Выбираем название в зависимости от режима
+            text = text_auto if trading_mode == 'auto' else text_manually
             markup.row(InlineKeyboardButton(text=text, callback_data=callback_data))
 
-    # Общие кнопки можно добавить в конце
+    # Общие кнопки
     markup.row(InlineKeyboardButton(text="Назад", callback_data="admin_menu"))
 
     return markup.as_markup()
-
 
 def admin_user_cancel_menu(user:User):
     markup= InlineKeyboardBuilder()

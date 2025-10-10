@@ -16,7 +16,7 @@ from app.common.config import settings
 logger=logging.getLogger('system')
 
 
-async def get_instrument_info(exchange: ccxt) -> Dict:
+async def get_all_instrument_info(exchange: ccxt) -> Dict:
 
     endpoint = 'v5/market/instruments-info'
     method = 'GET'
@@ -65,7 +65,8 @@ async def _get_tickers_for_manual_mode(exchange: ccxt, data_for_coins: Dict) -> 
 
     endpoint = '/v5/market/tickers'
     params = {'category': 'linear'}
-    response = (await exchange.request(endpoint, 'GET', params=params))
+    method='GET'
+    response = (await exchange.request(endpoint, method=method, params=params))
     df = pd.DataFrame(response['result']['list'])
 
     cols_to_keep = ['markPrice', 'turnover24h','price24hPcnt', 'symbol'] #
@@ -136,7 +137,7 @@ async def infinity_get_data_coins(redis: Redis):
                 now = time.time()
 
                 if now - last_info_update > 3600:
-                    data = await get_instrument_info(exchange)
+                    data = await get_all_instrument_info(exchange)
                     await redis_client.save_coins_info(data)
                     last_info_update = now
 

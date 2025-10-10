@@ -38,7 +38,6 @@ class AutoTradingStrategy(TradingStrategy):
         try:
             if order_id:
                 response=await change_tp_price(self.context.client,symbol,order_id,tp_price)
-                logger.info(f'Change TP  {symbol} Side : {position.position_idx}  NEW {tp_price}, OLD {position.take_profit_price}')
                 if self.context.hp_manager.get_main_position(symbol):
                     await self.context.hp_manager.update_main_position_take_profit(symbol,tp_price)
 

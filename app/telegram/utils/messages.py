@@ -14,14 +14,14 @@ class MessageBuilder:
     translations = {
         "leverage": "Кредитное плечо",
         "balance": "Баланс",
-        "take_profit": "Тейк-профит",
+        "take_profit": "Тейк-профит" if settings.TRADING_MODE=='auto' else 'Тейк профит Хеджа',
         "size": "Размер сделки",
         "api": "API ключ",
         "secret": "API Secret",
         "user_sub": "Количество дней подписки",
         'hedge_percentage_long': "Процент открытия хэджирования",
         'hedge_percentage_short': "Процент открытия хэджирования(SHORT)",
-        'hedge_stop_loss_percentage' : "Стоп лос Хеджирования"
+        'hedge_stop_loss_percentage' : "Стоп лос Хеджирования" if settings.TRADING_MODE=='auto' else 'Тейк профит Лонга'
     }
     url_info= {
         'api_secret_url':'https://telegra.ph/Instrukciya-po-sozdaniyu-i-nastrojke-API-klyuchej-na-kriptobirzhe-Bybit-06-08-2'

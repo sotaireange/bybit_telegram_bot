@@ -45,7 +45,8 @@ async def on_startup(dispatcher: Dispatcher, bot: Bot):
         pass
 
 async def on_shutdown(dispatcher: Dispatcher, bot: Bot):
-    await bot.delete_webhook(drop_pending_updates=True)
+    if settings.BOT_MODE=='webhook':
+        await bot.delete_webhook(drop_pending_updates=True)
     await bot.send_message(chat_id=settings.DEV_ID, text="🛑 <b>Bot stopped</b>")
     await bot.delete_my_commands()
 
@@ -96,7 +97,6 @@ async def run_polling_mode(dp: Dispatcher, bot: Bot, faststream_app: FastStream)
 
 
 async def wait_for_dns_with_limit(host='api.telegram.org', interval=30, max_attempts=5):
-    """Ожидание DNS с ограничением попыток"""
     for attempt in range(1, max_attempts + 1):
         try:
             logger.info(f"🔍 DNS check attempt {attempt}/{max_attempts} for {host}")
@@ -153,7 +153,6 @@ async def main():
         try:
             if not await wait_for_dns_with_limit():
                 logger.error("DNS unavailable after 5 attempts. Exiting.")
-                return
             if settings.BOT_MODE == 'webhook':
                 try:
                     webhook_url = f"{settings.WEBHOOK_URL}{settings.WEBHOOK_PATH}"
