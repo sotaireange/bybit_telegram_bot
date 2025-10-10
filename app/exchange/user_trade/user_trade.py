@@ -86,7 +86,7 @@ class TradeBot:
 
 
     async def initialize(self):
-        self.set_client(testnet=False)
+        self.set_client()
         await self.update_settings()
         await self.init_hp_manager()
         await self.init_broker()
