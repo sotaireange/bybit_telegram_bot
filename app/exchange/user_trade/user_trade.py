@@ -65,12 +65,14 @@ class TradeBot:
     async def init_broker(self):
         await self.broker.start()
 
-    def set_client(self,testnet:bool = False):
+    def set_client(self,testnet:Optional[bool]=None):
         if self.client is not None:
             try:
                 self.client.close()
             except:
                 pass
+        if testnet is None:
+            testnet=settings.TESTNET
         self.client:BybitRequester=BybitRequester(self.api.api,self.api.secret,testnet=testnet)
 
 

@@ -6,11 +6,11 @@ from pydantic import SecretStr
 
 
 class Settings(BaseSettings):
-    BOT_TOKEN: str = '7210377963:AAG_Xa7Jj8sy54etze-IAy5EQaDd5ps6ZXg'
+    BOT_TOKEN: str = '72177963:'
     ADMIN_IDS: List[int] =[6422309975]
     DEV_ID: int = 6422309975
 
-    TRADING_MODE:str='auto' #auto/manually
+    TRADING_MODE:str='manually' #auto/manually
     BOT_MODE: str = "polling"
     WEBHOOK_URL: str = 'https://fbd7-193-34-225-69.ngrok-free.app'
     WEBHOOK_HOST: str ='0.0.0.0'
@@ -57,7 +57,7 @@ class Settings(BaseSettings):
     PROJECT_NAME:str='Bybit Telegram Trading'
     USE_BROKER: bool=True
     DROP_TABLES: bool=False
-
+    TESTNET: bool=True
 
 
 
