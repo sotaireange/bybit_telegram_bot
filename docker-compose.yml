@@ -14,29 +14,25 @@ services:
       - certbot_www:/var/www/certbot
       - /home/bybit_telegram_bot/html:/usr/share/nginx/html
       - /home/bybit_telegram_bot/nginx/healthcheck.sh:/healthcheck.sh
-
     restart: always
     healthcheck:
       test: ["CMD", "sh", "/healthcheck.sh"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 30s
+      start_period: 1s
     networks:
       - app-network
     depends_on:
       - bot
       - worker
 
-
   certbot:
     image: certbot/certbot
+    profiles: ["certs"]   # <-- запускается только вручную
     volumes:
       - certbot_data:/etc/letsencrypt
       - certbot_www:/var/www/certbot
-    command: certonly  --webroot --webroot-path=/var/www/certbot --email vstomsk@gmail.com --agree-tos --no-eff-email -d bybit-telegram.site
-    depends_on:
-      - nginx
 
   bot:
     build:
@@ -49,7 +45,6 @@ services:
       - SERVICE_NAME=bot
     volumes:
       - logs_volume:/logs
-
     depends_on:
       - postgres
       - redis
@@ -108,7 +103,7 @@ services:
       - redis-server
       - '--requirepass ${REDIS_PASSWORD}'
       - '--rename-command SLAVEOF ""'
-      - '--rename-command REPLICAOF "" '
+      - '--rename-command REPLICAOF ""'
       - '--maxmemory 2048mb'
       - '--maxmemory-policy volatile-lru'
       - '--appendonly yes'
@@ -121,11 +116,10 @@ services:
     ports:
       - "6379:6379"
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
-
     deploy:
       resources:
         limits:
