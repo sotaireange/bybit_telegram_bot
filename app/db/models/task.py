@@ -23,7 +23,6 @@ class TaskStatus(str,Enum):
 
 
 class Task(Base):
-    """Модель задачи для сохранения в PostgreSQL"""
     __tablename__ = 'tasks'
 
     id = Column(Integer, primary_key=True)
@@ -39,7 +38,6 @@ class Task(Base):
 
 
     def to_dict(self):
-        """Преобразование задачи в словарь для отправки в брокер сообщений"""
         return {
             'id': self.id,
             'user_id': self.user_id,
@@ -56,7 +54,6 @@ class Task(Base):
 
     @staticmethod
     async def get_user_task(session: AsyncSession, user_id: int) -> List["Task"]:
-        """Получение всех платежей пользователя"""
         query = await session.execute(
             select(Task)
             .where(
@@ -68,7 +65,6 @@ class Task(Base):
 
     @staticmethod
     async def get_proccesing_tasks(session: AsyncSession) -> list["Task"]:
-        """Получение всех ожидающих платежей"""
         result = await session.scalars(
             select(Task).where(Task.status.in_([TaskStatus.PROCESSING])))
         return list(result.all())
